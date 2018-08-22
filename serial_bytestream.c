@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <sys/ioctl.h>
 
+#include <stdint.h>
+
 //#include <uapi/linux/usbdevice_fs.h>
 // the usbdevice library is not on Mac so here is the workaround..
 #define USBDEVFS_RESET _IO('U', 20)
@@ -68,7 +70,6 @@ void set_blocking (int fd, int should_block)
                 printf("error %d setting term attributes", errno);
 }
 
-
 int main() 
 {
     printf("starting...");
@@ -76,32 +77,72 @@ int main()
     char *portname = "/dev/tty.usbserial-A601SWKZ";
     int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
 
-
     if (fd < 0)
     {
             printf("error %d opening %s: %s", errno, portname, strerror (errno));
             return -1;
     }
 
-    set_interface_attribs (fd, B115200, 0);  // set speed to 115,200 bps, 8n1 (no parity)
-    set_blocking (fd, 0);                // set no blocking
-    printf("finished blocking...");
-    fflush(stdout);
-    
-    write (fd, "hello!\n", 7);           // send 7 character greeting
+    // set speed to 9600 baud rate, 8n1 (no parity)
+    set_interface_attribs (fd, B9600, 0);
+    // set no blocking 
+    set_blocking (fd, 0);
 
-    usleep ((7 + 25) * 100);             // sleep enough to transmit the 7 plus
-                                     // receive 25:  approx 100 uS per char transmit
-    char buf [100];
-    int n = read (fd, buf, sizeof buf);  // read up to 100 characters if ready to read
+    // commands for use with the device
+    int message_size = 7; 
 
-    printf("%s", buf);
+    uint8_t read_voltage[7];
+    read_voltage[0] = 0xB4;
+    read_voltage[1] = 0xC0;
+    read_voltage[2] = 0xA8;
+    read_voltage[3] = 0x01;
+    read_voltage[4] = 0x01;
+    read_voltage[5] = 0x00;
+    read_voltage[6] = 0x1E;
+
+    uint8_t read_current[7];
+    read_current[0] = 0xB1;
+    read_current[1] = 0xC0;
+    read_current[2] = 0xA8;
+    read_current[3] = 0x01;
+    read_current[4] = 0x01;
+    read_current[5] = 0x00;
+    read_current[6] = 0x1B;
+
+    //char read_voltage[14] = "B0C0A80101001A";
+
+    for(int i = 0; i < message_size; i++) {
+        printf("%d) 0x%d\n", i, read_voltage[i]); 
+    }
+
+    for(int i = 0; i < message_size; i++) {
+        write (fd, &read_voltage[i], 1);
+        // sleep enough to transmit the 1 byte (#bytes+25)*100
+        // receive 25:  approx 100 uS per char transmit
+        usleep ((1 + 25) * 100);
+    }
+
+    uint8_t buf [message_size];
+    //char buf[message_size];
+    memset(&buf, -1, sizeof buf);
+    for(int i = 0; i < message_size; i++) {
+        int n = read (fd, &buf[i], 1); 
+        if (n == 1) 
+            continue;
+        else
+            break;
+        usleep (1000);
+    }
+
+    for(int i = 0; i < message_size; i++) {                                             
+        printf("%d) 0x%d\n", i, buf[i]);                             
+    } 
 
     printf("ending...");
     fflush(stdout);
     
     // doesn't work
-    int rc = 0; // int rc = ioctl(fd, USBDEVFS_RESET, 0);
+    int rc = ioctl(fd, USBDEVFS_RESET, 0);
     if (rc < 0) {
         perror("Error in ioctl");
         return 1;

@@ -1,8 +1,14 @@
 # target
 lib := serial_bytesteam
 
+CC = gcc
+CFLAGS := -Wall -Werror -Wextra
+
 all:
-	gcc -g serial_bytestream.c -o $(lib)
+	$(CC) $(CFLAGS) serial_bytestream.c -o $(lib)
+
+debug:
+	$(CC) $(CFLAGS) -ggdb serial_bytestream.c -o $(lib)
 
 clean:
 	rm -f $(lib)
