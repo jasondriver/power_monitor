@@ -8,11 +8,16 @@
 
 #include <stdint.h>
 
+#define MSG_LEN 7
+
 //#include <uapi/linux/usbdevice_fs.h>
 // the usbdevice library is not on Mac so here is the workaround..
 #define USBDEVFS_RESET _IO('U', 20)
 
-
+/*
+/  Thanks to wallyk for the set interface and blocking methods from this post on stack overflow
+/  https://stackoverflow.com/questions/6947413/how-to-open-read-and-write-from-serial-port-in-c
+*/ 
 int set_interface_attribs (int fd, int speed, int parity)
 {
         struct termios tty;
@@ -70,8 +75,19 @@ void set_blocking (int fd, int should_block)
                 printf("error %d setting term attributes", errno);
 }
 
+// caller must make sure that the length of the packet is correct
+int print_packet(int size, uint8_t packet[]) {
+    for(int i = 0; i < size; i++) {
+        printf("%d) 0x%x\n", i, packet[i]);
+    }
+    return 0;
+}
+
 int main() 
 {
+    uint8_t READ_VOLTAGE[] = {0xB4, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1E};
+    //uint8_t READ_CURRENT[] = {0xB1, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1B};
+
     printf("starting...");
     fflush(stdout);
     char *portname = "/dev/tty.usbserial-A601SWKZ";
@@ -89,9 +105,7 @@ int main()
     set_blocking (fd, 0);
 
     // commands for use with the device
-    int message_size = 7; 
-
-    uint8_t read_voltage[7];
+    uint8_t read_voltage[MSG_LEN];
     read_voltage[0] = 0xB4;
     read_voltage[1] = 0xC0;
     read_voltage[2] = 0xA8;
@@ -100,7 +114,7 @@ int main()
     read_voltage[5] = 0x00;
     read_voltage[6] = 0x1E;
 
-    uint8_t read_current[7];
+    uint8_t read_current[MSG_LEN];
     read_current[0] = 0xB1;
     read_current[1] = 0xC0;
     read_current[2] = 0xA8;
@@ -109,23 +123,22 @@ int main()
     read_current[5] = 0x00;
     read_current[6] = 0x1B;
 
-    //char read_voltage[14] = "B0C0A80101001A";
+    print_packet(MSG_LEN, READ_VOLTAGE);
 
-    for(int i = 0; i < message_size; i++) {
+    for(int i = 0; i < MSG_LEN; i++) {
         printf("%d) 0x%d\n", i, read_voltage[i]); 
     }
 
-    for(int i = 0; i < message_size; i++) {
+    for(int i = 0; i < MSG_LEN; i++) {
         write (fd, &read_voltage[i], 1);
         // sleep enough to transmit the 1 byte (#bytes+25)*100
         // receive 25:  approx 100 uS per char transmit
         usleep ((1 + 25) * 100);
     }
 
-    uint8_t buf [message_size];
-    //char buf[message_size];
+    uint8_t buf [MSG_LEN];
     memset(&buf, -1, sizeof buf);
-    for(int i = 0; i < message_size; i++) {
+    for(int i = 0; i < MSG_LEN; i++) {
         int n = read (fd, &buf[i], 1); 
         if (n == 1) 
             continue;
@@ -134,7 +147,7 @@ int main()
         usleep (1000);
     }
 
-    for(int i = 0; i < message_size; i++) {                                             
+    for(int i = 0; i < MSG_LEN; i++) {                                             
         printf("%d) 0x%d\n", i, buf[i]);                             
     } 
 
