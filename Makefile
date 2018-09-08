@@ -1,3 +1,5 @@
+.Phoney: all debug clean
+
 # target
 lib := serial_bytesteam
 
