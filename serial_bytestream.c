@@ -6,10 +6,10 @@
 #include <stdio.h>
 #include <sys/ioctl.h>
 
-#include <sqlite3.h>
+//#include <sqlite3.h>
 #include <stdint.h>
 
-#define PACKED __attribute__((packed))
+//#define PACKED __attribute__((packed))
 
 #define MSG_LEN 7
 
@@ -18,12 +18,12 @@
 #define USBDEVFS_RESET _IO('U', 20)
 
 /* 
- * Sets usb information using the open file descriptor
+ *  Sets usb information using the open file descriptor
  *  Thanks to wallyk for the set interface and blocking methods from this post on stack overflow
  *  https://stackoverflow.com/questions/6947413/how-to-open-read-and-write-from-serial-port-in-c
+ *  added some slight modifications to them
  */ 
-static int set_interface_attribs (int fd, int speed, int parity)
-{
+static int set_interface_attribs (int fd, int speed, int parity) {
     struct termios tty;
     memset (&tty, 0, sizeof tty);
     if (tcgetattr (fd, &tty) != 0)
@@ -63,28 +63,30 @@ static int set_interface_attribs (int fd, int speed, int parity)
 }
 
 /* 
- * Sets blocking on open file descriptor
+ *  Sets blocking on open file descriptor
  */
-static void set_blocking (int fd, int should_block)
-{
+static int set_blocking (int fd, int should_block) {
     struct termios tty;
     memset (&tty, 0, sizeof tty);
     if (tcgetattr (fd, &tty) != 0)
     {
         printf("error %d from tggetattr", errno);
-        return;
+        return -1;
     }
 
     tty.c_cc[VMIN]  = should_block ? 1 : 0;
     tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
 
-    if (tcsetattr (fd, TCSANOW, &tty) != 0)
+    if (tcsetattr (fd, TCSANOW, &tty) != 0) {
         printf("error %d setting term attributes", errno);
+        return -1;
+    }
+    return 0;
 }
 
 /*
- * Prints array elements
- * Caller must make sure that the length of the packet is correct
+ *  Prints array elements
+ *  Caller must make sure that the length of the packet is correct
  */
 static int print_packet(int size, uint8_t packet[]) {
     for(int i = 0; i < size; i++) {
@@ -94,8 +96,8 @@ static int print_packet(int size, uint8_t packet[]) {
 }
 
 /*
- * Sends packet to open file descriptor of USB device
- * Caller must make sure that the length of the packet is correct
+ *  Sends packet to open file descriptor of USB device
+ *  Caller must make sure that the length of the packet is correct
  */
 static int send_packet(int fd, int size, uint8_t packet[]) { 
     for(int i = 0; i < size; i++) {
@@ -108,8 +110,8 @@ static int send_packet(int fd, int size, uint8_t packet[]) {
 }
 
 /*
- * Recieves and returns packet from open file descriptor of USB device
- * Caller must make sure that the length of the packet is correct
+ *  Recieves and returns packet from open file descriptor of USB device
+ *  Caller must make sure that the length of the packet is correct
  */
 static int recieve_packet(int fd, int size, uint8_t *packet) {
     for(int i = 0; i < size; i++) {
@@ -124,19 +126,30 @@ static int recieve_packet(int fd, int size, uint8_t *packet) {
 }
 
 /*
- *
+ *  Sets the communication address of the device, needs to be of the form ###.###.###.### i.e. 192.168.1.1
+ *  Caller must make sure that the length of the addr is 4 integers, and the address isn't already in use
  */
-//static 
+static int set_com_addr(int fd, uint8_t addr[]) {
+    uint8_t set_com_addr_cmd[] = {0xB4, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE1};
+    for(int i = 1; i < 5; i++)
+        set_com_addr_cmd[i] = addr[i-1];
+    send_packet(fd, MSG_LEN, set_com_addr_cmd);
+    uint8_t buf[MSG_LEN];
+    memset(&buf, -1, sizeof(buf));
+    recieve_packet(fd, MSG_LEN, buf);
+    // TODO check recieved packet for confirmation
+    return 0;
+}
 
 /* 
- * TODO: resets usb device
+ *  TODO: resets usb device
  */
 static int reset_device(int fd) {
     // doesn't work
     int rc = ioctl(fd, USBDEVFS_RESET, 0);
     if (rc < 0) {
         perror("Error in ioctl");
-        return 1;
+        return -1;
     }
     return 0;
 }
@@ -183,6 +196,9 @@ int main()
     read_current[4] = 0x01;
     read_current[5] = 0x00;
     read_current[6] = 0x1B;
+
+    uint8_t com_addr[] = {192, 168, 1, 1};
+    set_com_addr(fd, com_addr);
 
 /*
     for(int i = 0; i < MSG_LEN; i++) {

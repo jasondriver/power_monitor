@@ -1,13 +1,16 @@
-.Phoney: all debug clean
-
 # target
 lib := serial_bytesteam
+deps := serial_bytestream.c serial_bytestream.h
+obj := serial_bytestream.o
 
 CC = gcc
 CFLAGS := -Wall -Werror -Wextra
 
-all:
-	$(CC) $(CFLAGS) serial_bytestream.c -o $(lib)
+all: $(obj)
+	$(CC) $(CFLAGS) $(obj) -o $(lib)
+
+$(obj): $(deps)
+	$(CC) -c $(CFLAGS) serial_bytestream.c
 
 debug:
 	$(CC) $(CFLAGS) -ggdb serial_bytestream.c -o $(lib)
@@ -22,4 +25,6 @@ debug_web:
 	#flask run
 
 clean:
-	rm -f $(lib) web_server.pyc
+	rm -f $(lib) $(obj) web_server.pyc
+
+.Phoney: all debug clean
