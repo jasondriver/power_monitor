@@ -17,11 +17,12 @@
 // the usbdevice library is not on Mac so here is the workaround..
 #define USBDEVFS_RESET _IO('U', 20)
 
-/*
-/  Thanks to wallyk for the set interface and blocking methods from this post on stack overflow
-/  https://stackoverflow.com/questions/6947413/how-to-open-read-and-write-from-serial-port-in-c
-*/ 
-int set_interface_attribs (int fd, int speed, int parity)
+/* 
+ * Sets usb information using the open file descriptor
+ *  Thanks to wallyk for the set interface and blocking methods from this post on stack overflow
+ *  https://stackoverflow.com/questions/6947413/how-to-open-read-and-write-from-serial-port-in-c
+ */ 
+static int set_interface_attribs (int fd, int speed, int parity)
 {
     struct termios tty;
     memset (&tty, 0, sizeof tty);
@@ -61,7 +62,10 @@ int set_interface_attribs (int fd, int speed, int parity)
     return 0;
 }
 
-void set_blocking (int fd, int should_block)
+/* 
+ * Sets blocking on open file descriptor
+ */
+static void set_blocking (int fd, int should_block)
 {
     struct termios tty;
     memset (&tty, 0, sizeof tty);
@@ -78,16 +82,22 @@ void set_blocking (int fd, int should_block)
         printf("error %d setting term attributes", errno);
 }
 
-// caller must make sure that the length of the packet is correct
-int print_packet(int size, uint8_t packet[]) {
+/*
+ * Prints array elements
+ * Caller must make sure that the length of the packet is correct
+ */
+static int print_packet(int size, uint8_t packet[]) {
     for(int i = 0; i < size; i++) {
         printf("%d) 0x%.2x\n", i, packet[i]);
     }
     return 0;
 }
 
-// caller must make sure that the length of the packet is correct
-int send_packet(int fd, int size, uint8_t packet[]) { 
+/*
+ * Sends packet to open file descriptor of USB device
+ * Caller must make sure that the length of the packet is correct
+ */
+static int send_packet(int fd, int size, uint8_t packet[]) { 
     for(int i = 0; i < size; i++) {
         write (fd, &packet[i], 1);
         // sleep enough to transmit the 1 byte (#bytes+25)*100
@@ -97,8 +107,11 @@ int send_packet(int fd, int size, uint8_t packet[]) {
     return 0;
 }
 
-// caller must make sure that the length of the packet is correct
-int recieve_packet(int fd, int size, uint8_t *packet) {
+/*
+ * Recieves and returns packet from open file descriptor of USB device
+ * Caller must make sure that the length of the packet is correct
+ */
+static int recieve_packet(int fd, int size, uint8_t *packet) {
     for(int i = 0; i < size; i++) {
         int n = read (fd, &packet[i], 1);
         if (n == 1)
@@ -110,7 +123,15 @@ int recieve_packet(int fd, int size, uint8_t *packet) {
     return 0;
 }
 
-int reset_device(int fd) {
+/*
+ *
+ */
+//static 
+
+/* 
+ * TODO: resets usb device
+ */
+static int reset_device(int fd) {
     // doesn't work
     int rc = ioctl(fd, USBDEVFS_RESET, 0);
     if (rc < 0) {
