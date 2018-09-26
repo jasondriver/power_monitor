@@ -157,6 +157,17 @@ static int set_com_addr(int fd, uint8_t addr[]) {
     return 0;
 }
 
+/*
+ *  Convert read voltage packet to voltage value
+ *  voltage = packet[1] packet[2] . packet[3]
+ *  TODO: add decimal place to return value
+ */
+static double convert_voltage(uint8_t packet[]) {
+    int voltage_int = (packet[1] << 8) + packet[2];
+    int voltage_decimal = packet[3];
+    return voltage_int;
+}
+
 /* 
  *  TODO: resets usb device
  */
