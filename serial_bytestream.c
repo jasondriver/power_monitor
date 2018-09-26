@@ -96,6 +96,17 @@ static int print_packet(int size, uint8_t packet[]) {
 }
 
 /*
+ * Print packet on one line
+ */
+static int print_packet_oneline(int size, uint8_t packet[]) {
+    printf("packet: 0x");
+    for(int i = 0; i < size; i++)
+        printf("%.2x", packet[i]);
+    printf("\n");
+    return 0;
+}
+
+/*
  *  Sends packet to open file descriptor of USB device
  *  Caller must make sure that the length of the packet is correct
  */
@@ -134,10 +145,15 @@ static int set_com_addr(int fd, uint8_t addr[]) {
     for(int i = 1; i < 5; i++)
         set_com_addr_cmd[i] = addr[i-1];
     send_packet(fd, MSG_LEN, set_com_addr_cmd);
+    printf("sent packet\n");
+    print_packet_oneline(MSG_LEN, set_com_addr_cmd);
     uint8_t buf[MSG_LEN];
-    memset(&buf, -1, sizeof(buf));
+    memset(&buf, 0, sizeof(buf));
     recieve_packet(fd, MSG_LEN, buf);
-    // TODO check recieved packet for confirmation
+    usleep(10000);
+    recieve_packet(fd, MSG_LEN, buf);
+    printf("recieved packet\n");
+    print_packet_oneline(MSG_LEN, buf);
     return 0;
 }
 
@@ -164,7 +180,7 @@ int main()
 
     print_packet(MSG_LEN, READ_VOLTAGE);
 
-    char *portname = "/dev/tty.usbserial-A601SWKZ";
+    char *portname = "/dev/ttyUSB0";
     int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
 
     if (fd < 0)
@@ -178,25 +194,7 @@ int main()
     // set no blocking 
     set_blocking (fd, 0);
 
-    // commands for use with the device
-    uint8_t read_voltage[MSG_LEN];
-    read_voltage[0] = 0xB4;
-    read_voltage[1] = 0xC0;
-    read_voltage[2] = 0xA8;
-    read_voltage[3] = 0x01;
-    read_voltage[4] = 0x01;
-    read_voltage[5] = 0x00;
-    read_voltage[6] = 0x1E;
-
-    uint8_t read_current[MSG_LEN];
-    read_current[0] = 0xB1;
-    read_current[1] = 0xC0;
-    read_current[2] = 0xA8;
-    read_current[3] = 0x01;
-    read_current[4] = 0x01;
-    read_current[5] = 0x00;
-    read_current[6] = 0x1B;
-
+    // set communication address as 192.168.1.1 (not for LAN, but for usb to device)
     uint8_t com_addr[] = {192, 168, 1, 1};
     set_com_addr(fd, com_addr);
 
@@ -221,6 +219,7 @@ int main()
     memset(&buf, -1, sizeof buf);
     
     recieve_packet(fd, MSG_LEN, buf);
+    printf("recieved packet\n");
     print_packet(MSG_LEN, buf);
 
 /*
