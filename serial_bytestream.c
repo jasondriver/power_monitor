@@ -137,13 +137,32 @@ static int recieve_packet(int fd, int size, uint8_t *packet) {
 }
 
 /*
+ *  Calculates checksum by adding together all of the bytes
+ */
+static uint8_t calc_checksum(int size, uint8_t packet[]) {
+    uint8_t ret = 0;
+    for(int i = 0; i < size; i++)
+        ret += packet[i];
+    return ret;
+}
+
+/*
  *  Sets the communication address of the device, needs to be of the form ###.###.###.### i.e. 192.168.1.1
  *  Caller must make sure that the length of the addr is 4 integers, and the address isn't already in use
  */
-static int set_com_addr(int fd, uint8_t addr[]) {
-    uint8_t set_com_addr_cmd[] = {0xB4, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE1};
+int set_com_addr(int fd, uint8_t addr[]) {
+    // package address info for device
+    uint8_t set_com_addr_cmd[] = {0xB4, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     for(int i = 1; i < 5; i++)
         set_com_addr_cmd[i] = addr[i-1];
+
+    // calculate checksum for packet using the first 6 bytes
+    set_com_addr_cmd[6] = calc_checksum(6, set_com_addr_cmd);
+
+    printf("This is the packet...\n");
+    print_packet_oneline(MSG_LEN, set_com_addr_cmd);
+
+    // send packet to device
     send_packet(fd, MSG_LEN, set_com_addr_cmd);
     printf("sent packet\n");
     print_packet_oneline(MSG_LEN, set_com_addr_cmd);
@@ -164,8 +183,9 @@ static int set_com_addr(int fd, uint8_t addr[]) {
  */
 static double convert_voltage(uint8_t packet[]) {
     int voltage_int = (packet[1] << 8) + packet[2];
-    int voltage_decimal = packet[3];
-    return voltage_int;
+    double voltage_decimal = (double) packet[3] /100.0;
+    double ret = (double) voltage_int + voltage_decimal;
+    return ret;
 }
 
 /* 
@@ -190,6 +210,9 @@ int main()
     fflush(stdout);
 
     print_packet(MSG_LEN, READ_VOLTAGE);
+    READ_VOLTAGE[6] = calc_checksum(6, READ_VOLTAGE);
+    print_packet_oneline(MSG_LEN, READ_VOLTAGE);
+
 
     char *portname = "/dev/ttyUSB0";
     int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
@@ -209,22 +232,7 @@ int main()
     uint8_t com_addr[] = {192, 168, 1, 1};
     set_com_addr(fd, com_addr);
 
-/*
-    for(int i = 0; i < MSG_LEN; i++) {
-        printf("%d) 0x%d\n", i, read_voltage[i]); 
-    }
-*/
-
     send_packet(fd, MSG_LEN, READ_VOLTAGE);
-
-/*
-    for(int i = 0; i < MSG_LEN; i++) {
-        write (fd, &read_voltage[i], 1);
-        // sleep enough to transmit the 1 byte (#bytes+25)*100
-        // receive 25:  approx 100 uS per char transmit
-        usleep ((1 + 25) * 100);
-    }
-*/
 
     uint8_t buf[MSG_LEN];
     memset(&buf, -1, sizeof buf);
@@ -233,35 +241,12 @@ int main()
     printf("recieved packet\n");
     print_packet(MSG_LEN, buf);
 
-/*
-    for(int i = 0; i < MSG_LEN; i++) {
-        int n = read (fd, &buf[i], 1); 
-        if (n == 1) 
-            continue;
-        else
-            break;
-        usleep (1000);
-    }
-
-    for(int i = 0; i < MSG_LEN; i++) {                                             
-        printf("%d) 0x%d\n", i, buf[i]);                             
-    } 
-*/
+    printf("%f", convert_voltage(buf));
 
     printf("ending...");
     fflush(stdout);
   
     reset_device(fd);
-  
-/*
-    // doesn't work
-    int rc = ioctl(fd, USBDEVFS_RESET, 0);
-    if (rc < 0) {
-        perror("Error in ioctl");
-        return 1;
-    }
-*/
-
     close(fd);
     return 0;
 }

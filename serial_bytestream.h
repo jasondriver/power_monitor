@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-static int set_interface_attribs (int fd, int speed, int parity);
-static int set_blocking (int fd, int should_block);
 static int print_packet(int size, uint8_t packet[]);
 static int print_packet_oneline(int size, uint8_t packet[]);
 static int send_packet(int fd, int size, uint8_t packet[]);
