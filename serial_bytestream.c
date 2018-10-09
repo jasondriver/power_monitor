@@ -96,7 +96,7 @@ static int print_packet(int size, uint8_t packet[]) {
 }
 
 /*
- * Print packet on one line
+ *  Print packet on one line
  */
 static int print_packet_oneline(int size, uint8_t packet[]) {
     printf("packet: 0x");
@@ -183,6 +183,7 @@ int set_com_addr(int fd, uint8_t addr[]) {
  */
 static double convert_voltage(uint8_t packet[]) {
     int voltage_int = (packet[1] << 8) + packet[2];
+    //int voltage_int = packet[1] * 100 + packet[2];
     double voltage_decimal = (double) packet[3] /100.0;
     double ret = (double) voltage_int + voltage_decimal;
     return ret;

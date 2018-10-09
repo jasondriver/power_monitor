@@ -6,6 +6,14 @@ obj := serial_bytestream.o
 CC = gcc
 CFLAGS := -Wall -Werror -Wextra
 
+## Debug flag
+ifneq ($(D),1)
+CFLAGS	+= -O2
+else
+CFLAGS	+= -O0
+CFLAGS	+= -g
+endif
+
 all: $(obj)
 	$(CC) $(CFLAGS) $(obj) -o $(lib)
 
