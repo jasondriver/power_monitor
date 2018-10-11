@@ -1,9 +1,11 @@
 # target
 lib := serial_bytesteam
-deps := serial_bytestream.c serial_bytestream.h
+src := serial_bytestream.cc
+deps := $(src)
+deps += serial_bytestream.h
 obj := serial_bytestream.o
 
-CC = gcc
+CC = g++
 CFLAGS := -Wall -Werror -Wextra
 
 ## Debug flag
@@ -18,10 +20,10 @@ all: $(obj)
 	$(CC) $(CFLAGS) $(obj) -o $(lib)
 
 $(obj): $(deps)
-	$(CC) -c $(CFLAGS) serial_bytestream.c
+	$(CC) -c $(CFLAGS) $(src) 
 
 debug:
-	$(CC) $(CFLAGS) -ggdb serial_bytestream.c -o $(lib)
+	$(CC) $(CFLAGS) -ggdb $(src) -o $(lib)
 
 run:
 	export FLASK_APP=web_server.py

@@ -215,7 +215,7 @@ int main()
     print_packet_oneline(MSG_LEN, READ_VOLTAGE);
 
 
-    char *portname = "/dev/ttyUSB0";
+    char portname[] = "/dev/ttyUSB0";
     int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
 
     if (fd < 0)
