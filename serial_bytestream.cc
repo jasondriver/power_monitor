@@ -232,6 +232,8 @@ int main()
     memset(&buf, 0, sizeof buf);
     
     for (int i = 0; i < 10; i++) {
+        send_packet(fd, MSG_LEN, READ_VOLTAGE);
+        usleep(10000);
         recieve_packet(fd, MSG_LEN, buf);
         printf("recieved packet\n");
         print_packet_oneline(MSG_LEN, buf);
