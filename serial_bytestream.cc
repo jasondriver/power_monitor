@@ -9,8 +9,6 @@
 //#include <sqlite3.h>
 #include <stdint.h>
 
-//#define PACKED __attribute__((packed))
-
 #define MSG_LEN 7
 
 //#include <uapi/linux/usbdevice_fs.h>
@@ -159,19 +157,16 @@ int set_com_addr(int fd, uint8_t addr[]) {
     // calculate checksum for packet using the first 6 bytes
     set_com_addr_cmd[6] = calc_checksum(6, set_com_addr_cmd);
 
-    printf("This is the packet...\n");
-    print_packet_oneline(MSG_LEN, set_com_addr_cmd);
-
     // send packet to device
     send_packet(fd, MSG_LEN, set_com_addr_cmd);
-    printf("sent packet\n");
+    printf("Sent packet:\n");
     print_packet_oneline(MSG_LEN, set_com_addr_cmd);
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof(buf));
     recieve_packet(fd, MSG_LEN, buf);
     usleep(10000);
     recieve_packet(fd, MSG_LEN, buf);
-    printf("recieved packet\n");
+    printf("Recieved packet:\n");
     print_packet_oneline(MSG_LEN, buf);
     return 0;
 }
@@ -182,8 +177,8 @@ int set_com_addr(int fd, uint8_t addr[]) {
  *  TODO: add decimal place to return value
  */
 static double convert_voltage(uint8_t packet[]) {
-    int voltage_int = (packet[1] << 8) + packet[2];
-    //int voltage_int = packet[1] * 100 + packet[2];
+    //int voltage_int = (packet[1] << 8) + packet[2];
+    int voltage_int = packet[1] * 100 + packet[2];
     double voltage_decimal = (double) packet[3] /100.0;
     double ret = (double) voltage_int + voltage_decimal;
     return ret;
@@ -210,10 +205,8 @@ int main()
     printf("starting...");
     fflush(stdout);
 
-    print_packet(MSG_LEN, READ_VOLTAGE);
     READ_VOLTAGE[6] = calc_checksum(6, READ_VOLTAGE);
     print_packet_oneline(MSG_LEN, READ_VOLTAGE);
-
 
     char portname[] = "/dev/ttyUSB0";
     int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
@@ -236,11 +229,13 @@ int main()
     send_packet(fd, MSG_LEN, READ_VOLTAGE);
 
     uint8_t buf[MSG_LEN];
-    memset(&buf, -1, sizeof buf);
+    memset(&buf, 0, sizeof buf);
     
-    recieve_packet(fd, MSG_LEN, buf);
-    printf("recieved packet\n");
-    print_packet(MSG_LEN, buf);
+    for (int i = 0; i < 10; i++) {
+        recieve_packet(fd, MSG_LEN, buf);
+        printf("recieved packet\n");
+        print_packet_oneline(MSG_LEN, buf);
+    }
 
     printf("%f", convert_voltage(buf));
 

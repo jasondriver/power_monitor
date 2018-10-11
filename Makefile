@@ -6,7 +6,8 @@ deps += serial_bytestream.h
 obj := serial_bytestream.o
 
 CC = g++
-CFLAGS := -Wall -Werror -Wextra
+#CFLAGS := -Wall -Werror -Wextra
+CFLAGS := -Wall -Wextra
 
 ## Debug flag
 ifneq ($(D),1)
