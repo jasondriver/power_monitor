@@ -172,16 +172,42 @@ int set_com_addr(int fd, uint8_t addr[]) {
 }
 
 /*
- *  Convert read voltage packet to voltage value
+ *  Convert voltage packet to voltage value
  *  voltage = packet[1] packet[2] . packet[3]
- *  TODO: add decimal place to return value
  */
 static double convert_voltage(uint8_t packet[]) {
-    //int voltage_int = (packet[1] << 8) + packet[2];
     int voltage_int = packet[1] * 100 + packet[2];
     double voltage_decimal = (double) packet[3] /100.0;
     double ret = (double) voltage_int + voltage_decimal;
     return ret;
+}
+
+/*
+ *  Helper function for convert_power
+ */
+static int hex_to_int(uint8_t hi, uint8_t lo) {
+    uint8_t arr[4];
+    arr[0] = (hi & 0xF0) >> 4;
+    arr[1] = (hi & 0x0F);
+    arr[2] = (lo & 0xF0) >> 4;
+    arr[3] = lo & 0x0F;
+
+    int base = 1;
+    int ret = 0;
+
+    for (int i = 3; i > -1; i--) {
+        ret += arr[i] * base;
+	base *= 16;
+    }
+    return ret;
+}
+
+/*
+ *  Convert average power packet to power value
+ *  power = (packet[1] packet[2])basee16
+ */
+static int convert_power(uint8_t packet[]) {
+    return hex_to_int(packet[1], packet[2]);
 }
 
 /* 
@@ -238,17 +264,17 @@ int main()
         recieve_packet(fd, MSG_LEN, buf);
         printf("recieved packet\n");
         print_packet_oneline(MSG_LEN, buf);
+        printf("Wattage is: %d\n", convert_power(buf));
     }
- 
+
     for (int i = 0; i < 10; i++) {
         send_packet(fd, MSG_LEN, READ_VOLTAGE);
         usleep(10000);
         recieve_packet(fd, MSG_LEN, buf);
         printf("recieved packet\n");
         print_packet_oneline(MSG_LEN, buf);
+        printf("Voltage is: %f\n", convert_voltage(buf));
     }
-
-    printf("%f", convert_voltage(buf));
 
     printf("ending...");
     fflush(stdout);
