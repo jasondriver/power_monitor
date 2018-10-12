@@ -199,8 +199,9 @@ static int reset_device(int fd) {
 
 int main() 
 {
-    uint8_t READ_VOLTAGE[] = {0xB4, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1E};
+    uint8_t READ_VOLTAGE[] = {0xB0, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1A};
     uint8_t READ_CURRENT[] = {0xB1, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1B};
+    uint8_t READ_WATTAGE[] = {0XB2, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1C};
 
     printf("starting...");
     fflush(stdout);
@@ -232,7 +233,7 @@ int main()
     memset(&buf, 0, sizeof buf);
    
     for (int i = 0; i < 10; i++) {
-        send_packet(fd, MSG_LEN, READ_CURRENT);
+        send_packet(fd, MSG_LEN, READ_WATTAGE);
         usleep(10000);
         recieve_packet(fd, MSG_LEN, buf);
         printf("recieved packet\n");

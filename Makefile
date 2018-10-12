@@ -1,5 +1,5 @@
 # target
-lib := serial_bytesteam
+lib := serial_bytestream
 src := serial_bytestream.cc
 deps := $(src)
 deps += serial_bytestream.h
