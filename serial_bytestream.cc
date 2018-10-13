@@ -4,6 +4,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/ioctl.h>
 
 //#include <sqlite3.h>
@@ -183,31 +184,57 @@ static double convert_voltage(uint8_t packet[]) {
 }
 
 /*
- *  Helper function for convert_power
+ *  Convert current packet to value
  */
-static int hex_to_int(uint8_t hi, uint8_t lo) {
-    uint8_t arr[4];
-    arr[0] = (hi & 0xF0) >> 4;
-    arr[1] = (hi & 0x0F);
-    arr[2] = (lo & 0xF0) >> 4;
-    arr[3] = lo & 0x0F;
+static double convert_current(uint8_t packet[]) {
+    return (double) packet[2] + ((double) packet[3] / 100.0);
+}
+
+/*
+ *  Helper function for convert_power and convert_energy
+ *  size = how many elements to use, offset = where in the array to start, packet = array of #s
+ */
+static int hex_to_int(int size, int offset, uint8_t packet[]) {
+    uint8_t* arr =  (uint8_t*) malloc(2 * size * sizeof(uint8_t));
+    if(!arr) {
+        printf("error %d from malloc", errno);
+	return -1;
+    }
+    int j = offset;
+    for (int i = 0; i < 2 * size; i++){
+        if((i % 2) == 0) {
+            arr[i] = (packet[j] & 0xF0) >> 4;
+	} else {
+            arr[i] = packet[j] & 0x0F;
+            j++;
+	}
+    }
 
     int base = 1;
     int ret = 0;
 
-    for (int i = 3; i > -1; i--) {
+    for (int i = (2 * size) - 1; i > -1; i--) {
         ret += arr[i] * base;
 	base *= 16;
     }
+
+    free(arr);
     return ret;
 }
 
 /*
  *  Convert average power packet to power value
- *  power = (packet[1] packet[2])basee16
+ *  power = (packet[1] packet[2])base16
  */
 static int convert_power(uint8_t packet[]) {
-    return hex_to_int(packet[1], packet[2]);
+    return hex_to_int(2, 1, packet);
+}
+
+/*
+ *  Convert energy packet to value
+ */
+static int convert_energy(uint8_t packet[]) {
+    return hex_to_int(3, 1, packet);
 }
 
 /* 
@@ -228,6 +255,7 @@ int main()
     uint8_t READ_VOLTAGE[] = {0xB0, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1A};
     uint8_t READ_CURRENT[] = {0xB1, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1B};
     uint8_t READ_WATTAGE[] = {0XB2, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1C};
+    uint8_t READ_ENERGY[] = {0xB3, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1D};
 
     printf("starting...");
     fflush(stdout);
@@ -276,10 +304,28 @@ int main()
         printf("Voltage is: %f\n", convert_voltage(buf));
     }
 
-    printf("ending...");
+    for (int i = 0; i < 10; i++) {
+        send_packet(fd, MSG_LEN, READ_CURRENT);
+        usleep(10000);
+        recieve_packet(fd, MSG_LEN, buf);
+        printf("recieved packet\n");
+        print_packet_oneline(MSG_LEN, buf);
+        printf("Current is: %f\n", convert_current(buf));
+    }
+
+    for (int i = 0; i < 10; i++) {
+        send_packet(fd, MSG_LEN, READ_ENERGY);
+        usleep(10000);
+        recieve_packet(fd, MSG_LEN, buf);
+        printf("recieved packet\n");
+        print_packet_oneline(MSG_LEN, buf);
+        printf("Energy is: %d\n", convert_energy(buf));
+    }
+
+    printf("ending...\n");
     fflush(stdout);
   
-    reset_device(fd);
+    //reset_device(fd);
     close(fd);
     return 0;
 }
