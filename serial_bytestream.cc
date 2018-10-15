@@ -11,10 +11,16 @@
 #include <stdint.h>
 
 #define MSG_LEN 7
+#define SEND_RECEIVE_DELAY 10000
 
 //#include <uapi/linux/usbdevice_fs.h>
 // the usbdevice library is not on Mac so here is the workaround..
 #define USBDEVFS_RESET _IO('U', 20)
+
+uint8_t READ_VOLTAGE[] = {0xB0, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1A};
+uint8_t READ_CURRENT[] = {0xB1, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1B};
+uint8_t READ_WATTAGE[] = {0XB2, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1C};
+uint8_t READ_ENERGY[] = {0xB3, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1D};
 
 /* 
  *  Sets usb information using the open file descriptor
@@ -237,6 +243,49 @@ static int convert_energy(uint8_t packet[]) {
     return hex_to_int(3, 1, packet);
 }
 
+/*
+ *  
+ *  Main methods
+ *
+ */
+
+
+static int receive_power(int fd) {
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof buf);
+    send_packet(fd, MSG_LEN, READ_WATTAGE);
+    usleep(SEND_RECEIVE_DELAY);
+    recieve_packet(fd, MSG_LEN, buf);
+    return convert_power(buf);
+}
+
+static double receive_voltage(int fd) {
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof buf);
+    send_packet(fd, MSG_LEN, READ_VOLTAGE);
+    usleep(SEND_RECEIVE_DELAY);
+    recieve_packet(fd, MSG_LEN, buf);
+    return convert_voltage(buf);
+}
+
+static double receive_current(int fd) {
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof buf);
+    send_packet(fd, MSG_LEN, READ_CURRENT);
+    usleep(SEND_RECEIVE_DELAY);
+    recieve_packet(fd, MSG_LEN, buf);
+    return convert_current(buf);
+}
+
+static int receive_energy(int fd) {
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof buf);
+    send_packet(fd, MSG_LEN, READ_ENERGY);
+    usleep(SEND_RECEIVE_DELAY);
+    recieve_packet(fd, MSG_LEN, buf);
+    return convert_energy(buf);
+}
+
 /* 
  *  TODO: resets usb device
  */
@@ -252,11 +301,6 @@ static int reset_device(int fd) {
 
 int main() 
 {
-    uint8_t READ_VOLTAGE[] = {0xB0, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1A};
-    uint8_t READ_CURRENT[] = {0xB1, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1B};
-    uint8_t READ_WATTAGE[] = {0XB2, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1C};
-    uint8_t READ_ENERGY[] = {0xB3, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1D};
-
     printf("starting...");
     fflush(stdout);
 
@@ -282,44 +326,21 @@ int main()
     set_com_addr(fd, com_addr);
 
     send_packet(fd, MSG_LEN, READ_VOLTAGE);
-
-    uint8_t buf[MSG_LEN];
-    memset(&buf, 0, sizeof buf);
    
     for (int i = 0; i < 10; i++) {
-        send_packet(fd, MSG_LEN, READ_WATTAGE);
-        usleep(10000);
-        recieve_packet(fd, MSG_LEN, buf);
-        printf("recieved packet\n");
-        print_packet_oneline(MSG_LEN, buf);
-        printf("Wattage is: %d\n", convert_power(buf));
+        printf("Wattage is: %d\n", receive_power(fd));
     }
 
     for (int i = 0; i < 10; i++) {
-        send_packet(fd, MSG_LEN, READ_VOLTAGE);
-        usleep(10000);
-        recieve_packet(fd, MSG_LEN, buf);
-        printf("recieved packet\n");
-        print_packet_oneline(MSG_LEN, buf);
-        printf("Voltage is: %f\n", convert_voltage(buf));
+        printf("Voltage is: %f\n", receive_voltage(fd));
     }
 
     for (int i = 0; i < 10; i++) {
-        send_packet(fd, MSG_LEN, READ_CURRENT);
-        usleep(10000);
-        recieve_packet(fd, MSG_LEN, buf);
-        printf("recieved packet\n");
-        print_packet_oneline(MSG_LEN, buf);
-        printf("Current is: %f\n", convert_current(buf));
+        printf("Current is: %f\n", receive_current(fd));
     }
 
     for (int i = 0; i < 10; i++) {
-        send_packet(fd, MSG_LEN, READ_ENERGY);
-        usleep(10000);
-        recieve_packet(fd, MSG_LEN, buf);
-        printf("recieved packet\n");
-        print_packet_oneline(MSG_LEN, buf);
-        printf("Energy is: %d\n", convert_energy(buf));
+        printf("Energy is: %d\n", receive_energy(fd));
     }
 
     printf("ending...\n");
