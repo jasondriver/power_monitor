@@ -296,6 +296,18 @@ static int receive_energy(int fd) {
     return convert_energy(buf);
 }
 
+static void flush_line(int fd) {
+    int num_times_flush = 10;
+    uint8_t flush_packet[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t buf[MSG_LEN];
+    for(int i = 0; i < num_times_flush; i++) {
+        send_packet(fd, MSG_LEN, flush_packet);
+        usleep(SEND_RECEIVE_DELAY);
+        recieve_packet(fd, MSG_LEN, buf);
+    }
+    return;
+}
+
 /* 
  *  TODO: resets usb device
  */
@@ -318,7 +330,7 @@ string current_time_and_date() {
 
 string return_formated_sql_insert_string(int device_id, double voltage, double current, int power, int energy) {
     string sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
-                       "VALUES ("+current_time_and_date()+", "+to_string(device_id)+", "+to_string(voltage)+", "+to_string(current)+", "+to_string(power)+", "+to_string(energy)+" );";
+                 "VALUES ("+current_time_and_date()+", "+to_string(device_id)+", "+to_string(voltage)+", "+to_string(current)+", "+to_string(power)+", "+to_string(energy)+" );";
                        //"VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
     return sql;
 }
@@ -367,20 +379,25 @@ int main()
     set_com_addr(fd, com_addr);
 
     send_packet(fd, MSG_LEN, READ_VOLTAGE);
-   
+    flush_line(fd);
+
     for (int i = 0; i < 10; i++) {
+        flush_line(fd);
         printf("Wattage is: %d\n", receive_power(fd));
     }
 
     for (int i = 0; i < 10; i++) {
+        flush_line(fd);
         printf("Voltage is: %f\n", receive_voltage(fd));
     }
 
     for (int i = 0; i < 10; i++) {
+        flush_line(fd);
         printf("Current is: %f\n", receive_current(fd));
     }
 
     for (int i = 0; i < 10; i++) {
+        flush_line(fd);
         printf("Energy is: %d\n", receive_energy(fd));
     }
 
@@ -390,7 +407,6 @@ int main()
     sqlite3 *db;
     char *zErrMsg = 0;
     int rc;
-    char *sql;
 
     /* Open database */
     rc = sqlite3_open("power_monitor.db", &db);
@@ -403,8 +419,21 @@ int main()
     }
 
     /* Create SQL statement */
-    sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
-          "VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
+    //sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
+    //      "VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
+
+    int device_id = 1;
+    double voltage = 0.0;
+    double  current =  0.0;
+    voltage = receive_voltage(fd);
+    current =  receive_current(fd);
+    int power = 0;
+    int energy = 0;
+    power = receive_power(fd);
+    energy =  receive_energy(fd);
+
+    char const* sql = return_formated_sql_insert_string(device_id, voltage, current, power, energy).c_str();
+    cout << sql << "\n";
 
     /* Execute SQL statement */
     rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
