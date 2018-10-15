@@ -330,7 +330,7 @@ string current_time_and_date() {
 
 string return_formated_sql_insert_string(int device_id, double voltage, double current, int power, int energy) {
     string sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
-                 "VALUES ("+current_time_and_date()+", "+to_string(device_id)+", "+to_string(voltage)+", "+to_string(current)+", "+to_string(power)+", "+to_string(energy)+" );";
+                 "VALUES ('"+current_time_and_date()+"', "+to_string(device_id)+", "+to_string(voltage)+", "+to_string(current)+", "+to_string(power)+", "+to_string(energy)+" );";
                        //"VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
     return sql;
 }
@@ -381,22 +381,22 @@ int main()
     send_packet(fd, MSG_LEN, READ_VOLTAGE);
     flush_line(fd);
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 2; i++) {
         flush_line(fd);
         printf("Wattage is: %d\n", receive_power(fd));
     }
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 2; i++) {
         flush_line(fd);
         printf("Voltage is: %f\n", receive_voltage(fd));
     }
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 2; i++) {
         flush_line(fd);
         printf("Current is: %f\n", receive_current(fd));
     }
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 2; i++) {
         flush_line(fd);
         printf("Energy is: %d\n", receive_energy(fd));
     }
