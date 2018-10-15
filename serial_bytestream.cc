@@ -7,16 +7,19 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 
-//#include <sqlite3.h>
+#include <sqlite3.h> 
 #include <stdint.h>
 
+// define max message length
 #define MSG_LEN 7
+// define delay between sent packet and receive packet
 #define SEND_RECEIVE_DELAY 10000
 
 //#include <uapi/linux/usbdevice_fs.h>
 // the usbdevice library is not on Mac so here is the workaround..
 #define USBDEVFS_RESET _IO('U', 20)
 
+// global predefined packets to be sent for device by manufacturer
 uint8_t READ_VOLTAGE[] = {0xB0, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1A};
 uint8_t READ_CURRENT[] = {0xB1, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1B};
 uint8_t READ_WATTAGE[] = {0XB2, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1C};
@@ -24,7 +27,7 @@ uint8_t READ_ENERGY[] = {0xB3, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1D};
 
 /* 
  *  Sets usb information using the open file descriptor
- *  Thanks to wallyk for the set interface and blocking methods from this post on stack overflow
+ *  Thanks to wallyk for the set_interface_attribs and set_blocking methods from this post on stack overflow
  *  https://stackoverflow.com/questions/6947413/how-to-open-read-and-write-from-serial-port-in-c
  *  added some slight modifications to them
  */ 
@@ -249,7 +252,6 @@ static int convert_energy(uint8_t packet[]) {
  *
  */
 
-
 static int receive_power(int fd) {
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof buf);
@@ -299,6 +301,17 @@ static int reset_device(int fd) {
     return 0;
 }
 
+
+
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+   int i;
+   for(i = 0; i<argc; i++) {
+      printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+   }
+   printf("\n");
+   return 0;
+}
+
 int main() 
 {
     printf("starting...");
@@ -342,6 +355,39 @@ int main()
     for (int i = 0; i < 10; i++) {
         printf("Energy is: %d\n", receive_energy(fd));
     }
+
+    // open and add to sqlite3 database
+    sqlite3 *db;
+    char *zErrMsg = 0;
+    int rc;
+    char *sql;
+
+    /* Open database */
+    rc = sqlite3_open("power_monitor.db", &db);
+   
+    if( rc ) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return(0);
+    } else {
+        fprintf(stderr, "Opened database successfully\n");
+    }
+
+    /* Create SQL statement */
+    sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
+          "VALUES ('today', 1, 120.0, 0.1, 10, 10 ); " \
+
+    /* Execute SQL statement */
+    rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+   
+    if( rc != SQLITE_OK ){
+        fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);
+    } else {
+        fprintf(stdout, "Records created successfully\n");
+    }
+    sqlite3_close(db);
+
+
 
     printf("ending...\n");
     fflush(stdout);
