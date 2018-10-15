@@ -9,6 +9,14 @@
 
 #include <sqlite3.h> 
 #include <stdint.h>
+#include <string.h>
+#include <sstream>
+
+#include <ctime>
+#include <iostream>
+#include <iomanip>
+
+using namespace std; 
 
 // define max message length
 #define MSG_LEN 7
@@ -301,7 +309,19 @@ static int reset_device(int fd) {
     return 0;
 }
 
+string current_time_and_date() {
+    time_t raw_time = time(nullptr);
+    stringstream ss;
+    ss << put_time(localtime(&raw_time), "%Y-%m-%d %X");
+    return ss.str();
+}
 
+string return_formated_sql_insert_string(int device_id, double voltage, double current, int power, int energy) {
+    string sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
+                       "VALUES ("+current_time_and_date()+", "+to_string(device_id)+", "+to_string(voltage)+", "+to_string(current)+", "+to_string(power)+", "+to_string(energy)+" );";
+                       //"VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
+    return sql;
+}
 
 static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
    int i;
@@ -314,12 +334,20 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
 
 int main() 
 {
-    printf("starting...");
+    printf("starting...\n");
     fflush(stdout);
 
+   /*
+    * get time
+    */
+    string the_time = current_time_and_date();
+    cout << current_time_and_date() << "\n";
+
+    // calc checksum for READ_VOLTAGE
     READ_VOLTAGE[6] = calc_checksum(6, READ_VOLTAGE);
     print_packet_oneline(MSG_LEN, READ_VOLTAGE);
 
+    // open usb device
     char portname[] = "/dev/ttyUSB0";
     int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
 
@@ -356,7 +384,9 @@ int main()
         printf("Energy is: %d\n", receive_energy(fd));
     }
 
-    // open and add to sqlite3 database
+    /*
+     * open and add to sqlite3 database
+     */
     sqlite3 *db;
     char *zErrMsg = 0;
     int rc;
@@ -374,7 +404,7 @@ int main()
 
     /* Create SQL statement */
     sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
-          "VALUES ('today', 1, 120.0, 0.1, 10, 10 ); " \
+          "VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
 
     /* Execute SQL statement */
     rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
