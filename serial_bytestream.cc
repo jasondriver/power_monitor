@@ -329,10 +329,14 @@ string current_time_and_date() {
 }
 
 string return_formated_sql_insert_string(int device_id, double voltage, double current, int power, int energy) {
-    string sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
-                 "VALUES ('"+current_time_and_date()+"', "+to_string(device_id)+", "+to_string(voltage)+", "+to_string(current)+", "+to_string(power)+", "+to_string(energy)+" );\0";
+    //string sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
+                 //"VALUES ('"+current_time_and_date()+"', "+to_string(device_id)+", "+to_string(voltage)+", "+to_string(current)+", "+to_string(power)+", "+to_string(energy)+" );\0";
                        //"VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
-    return sql;
+    stringstream ss;
+    ss << "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) ";
+    ss << "VALUES ('" << current_time_and_date() << "', " << device_id << ", " << setw(5) << voltage;
+    ss << ", " << setw(4) << current << ", " << power << ", " << energy << " );";
+    return ss.str();
 }
 
 static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
@@ -348,8 +352,8 @@ int main()
 {
     printf("starting...\n");
     fflush(stdout);
-
-   /*
+   
+    /*
     * get time
     */
     string the_time = current_time_and_date();
@@ -434,6 +438,7 @@ int main()
 
     char const* sql = return_formated_sql_insert_string(device_id, voltage, current, power, energy).c_str();
     cout << sql << "\n";
+    printf("%f %f %d %d", voltage, current, power, energy);
 
     /* Execute SQL statement */
     rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
