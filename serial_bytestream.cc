@@ -33,6 +33,27 @@ uint8_t READ_CURRENT[] = {0xB1, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1B};
 uint8_t READ_WATTAGE[] = {0XB2, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1C};
 uint8_t READ_ENERGY[] = {0xB3, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1D};
 
+/*
+ *  Serial class for dealing with usb connections
+ */
+class Serial {
+    private:
+        char* port;
+        int baudrate = B9600;
+        int parity = 0;
+        int fd;
+        uint8_t com_addr[4] = {0x00, 0x00, 0x00, 0x00};
+        uint8_t read_voltage[MSG_LEN] = {0xB0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1A};
+        uint8_t read_current[MSG_LEN] = {0xB1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1B};
+        uint8_t read_wattage[MSG_LEN] = {0XB2, 0X00, 0X00, 0X00, 0X00, 0X00, 0X1C};
+        uint8_t read_energy[MSG_LEN] = {0xB3, 0X00, 0X00, 0X00, 0X00, 0X00, 0X1D};
+    public:
+        //Serial(char* port, int baudrate, int parity);
+        //void set_outgoing_packet_address(int size, uint8_t com_addr[]);
+        int print_packet_oneline(int size, uint8_t packet[]);
+        int print_packet(int size, uint8_t packet[]);
+} serial;
+
 /* 
  *  Sets usb information using the open file descriptor
  *  Thanks to wallyk for the set_interface_attribs and set_blocking methods from this post on stack overflow
@@ -104,7 +125,7 @@ static int set_blocking (int fd, int should_block) {
  *  Prints array elements
  *  Caller must make sure that the length of the packet is correct
  */
-static int print_packet(int size, uint8_t packet[]) {
+int Serial::print_packet(int size, uint8_t packet[]) {
     for(int i = 0; i < size; i++) {
         printf("%d) 0x%.2x\n", i, packet[i]);
     }
@@ -114,7 +135,7 @@ static int print_packet(int size, uint8_t packet[]) {
 /*
  *  Print packet on one line
  */
-static int print_packet_oneline(int size, uint8_t packet[]) {
+int Serial::print_packet_oneline(int size, uint8_t packet[]) {
     printf("packet: 0x");
     for(int i = 0; i < size; i++)
         printf("%.2x", packet[i]);
@@ -177,15 +198,15 @@ int set_com_addr(int fd, uint8_t addr[]) {
 
     // send packet to device
     send_packet(fd, MSG_LEN, set_com_addr_cmd);
-    printf("Sent packet:\n");
-    print_packet_oneline(MSG_LEN, set_com_addr_cmd);
+    //printf("Sent packet:\n");
+    //print_packet_oneline(MSG_LEN, set_com_addr_cmd);
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof(buf));
     recieve_packet(fd, MSG_LEN, buf);
     usleep(10000);
     recieve_packet(fd, MSG_LEN, buf);
-    printf("Recieved packet:\n");
-    print_packet_oneline(MSG_LEN, buf);
+    //printf("Recieved packet:\n");
+    //print_packet_oneline(MSG_LEN, buf);
     return 0;
 }
 
@@ -215,16 +236,16 @@ static int hex_to_int(int size, int offset, uint8_t packet[]) {
     uint8_t* arr =  (uint8_t*) malloc(2 * size * sizeof(uint8_t));
     if(!arr) {
         printf("error %d from malloc", errno);
-	return -1;
+    return -1;
     }
     int j = offset;
     for (int i = 0; i < 2 * size; i++){
         if((i % 2) == 0) {
             arr[i] = (packet[j] & 0xF0) >> 4;
-	} else {
+    } else {
             arr[i] = packet[j] & 0x0F;
             j++;
-	}
+    }
     }
 
     int base = 1;
@@ -232,7 +253,7 @@ static int hex_to_int(int size, int offset, uint8_t packet[]) {
 
     for (int i = (2 * size) - 1; i > -1; i--) {
         ret += arr[i] * base;
-	base *= 16;
+    base *= 16;
     }
 
     free(arr);
@@ -297,7 +318,7 @@ static int receive_energy(int fd) {
 }
 
 static void flush_line(int fd) {
-    int num_times_flush = 10;
+    int num_times_flush = 4;
     uint8_t flush_packet[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t buf[MSG_LEN];
     for(int i = 0; i < num_times_flush; i++) {
@@ -329,9 +350,6 @@ string current_time_and_date() {
 }
 
 string return_formated_sql_insert_string(int device_id, double voltage, double current, int power, int energy) {
-    //string sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
-                 //"VALUES ('"+current_time_and_date()+"', "+to_string(device_id)+", "+to_string(voltage)+", "+to_string(current)+", "+to_string(power)+", "+to_string(energy)+" );\0";
-                       //"VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
     stringstream ss;
     ss << "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) ";
     ss << "VALUES ('" << current_time_and_date() << "', " << device_id << ", " << setw(5) << voltage;
@@ -339,10 +357,10 @@ string return_formated_sql_insert_string(int device_id, double voltage, double c
     return ss.str();
 }
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+static int callback(void *not_used, int argc, char **argv, char **az_col_name) {
    int i;
    for(i = 0; i<argc; i++) {
-      printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+      printf("%s = %s\n", az_col_name[i], argv[i] ? argv[i] : "NULL");
    }
    printf("\n");
    return 0;
@@ -357,11 +375,11 @@ int main()
     * get time
     */
     string the_time = current_time_and_date();
-    cout << current_time_and_date() << "\n";
+    cout << "Current time: " << current_time_and_date() << "\n";
 
     // calc checksum for READ_VOLTAGE
     READ_VOLTAGE[6] = calc_checksum(6, READ_VOLTAGE);
-    print_packet_oneline(MSG_LEN, READ_VOLTAGE);
+    //print_packet_oneline(MSG_LEN, READ_VOLTAGE);
 
     // open usb device
     char portname[] = "/dev/ttyUSB0";
@@ -422,23 +440,24 @@ int main()
         fprintf(stderr, "Opened database successfully\n");
     }
 
-    /* Create SQL statement */
-    //sql = "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) "  \
-    //      "VALUES ('today', 1, 120.0, 0.1, 10, 10 );";
-
+    /* Get info */
     int device_id = 1;
     double voltage = 0.0;
     double  current =  0.0;
-    voltage = receive_voltage(fd);
-    current =  receive_current(fd);
     int power = 0;
     int energy = 0;
+
+    flush_line(fd);
+    voltage = receive_voltage(fd);
+    flush_line(fd);
+    current =  receive_current(fd);
+    flush_line(fd);
     power = receive_power(fd);
+    flush_line(fd);
     energy =  receive_energy(fd);
 
+    /* Create SQL statement */
     char const* sql = return_formated_sql_insert_string(device_id, voltage, current, power, energy).c_str();
-    cout << sql << "\n";
-    printf("%f %f %d %d", voltage, current, power, energy);
 
     /* Execute SQL statement */
     rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
@@ -447,10 +466,9 @@ int main()
         fprintf(stderr, "SQL error: %s\n", zErrMsg);
         sqlite3_free(zErrMsg);
     } else {
-        fprintf(stdout, "Records created successfully\n");
+        cout << "Records created successfully\n" << sql << "\n";
     }
     sqlite3_close(db);
-
 
 
     printf("ending...\n");

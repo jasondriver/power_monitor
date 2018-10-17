@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-static int print_packet(int size, uint8_t packet[]);
-static int print_packet_oneline(int size, uint8_t packet[]);
 static int send_packet(int fd, int size, uint8_t packet[]);
 static int recieve_packet(int fd, int size, uint8_t *packet);
 static int set_com_addr(int fd, uint8_t addr[]);
