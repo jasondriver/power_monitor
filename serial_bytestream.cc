@@ -48,11 +48,39 @@ class Serial {
         uint8_t read_wattage[MSG_LEN] = {0XB2, 0X00, 0X00, 0X00, 0X00, 0X00, 0X1C};
         uint8_t read_energy[MSG_LEN] = {0xB3, 0X00, 0X00, 0X00, 0X00, 0X00, 0X1D};
     public:
-        //Serial(char* port, int baudrate, int parity);
-        //void set_outgoing_packet_address(int size, uint8_t com_addr[]);
+        Serial(char* p, int = B9600, int = 0);
+        void _set_packet_helper(int size, int offset, uint8_t const get_addr[], uint8_t set_addr[]);
+        void set_outgoing_packet_address(int size, uint8_t com_addr[]);
         int print_packet_oneline(int size, uint8_t packet[]);
         int print_packet(int size, uint8_t packet[]);
-} serial;
+};
+
+/*
+ *  Constructor
+ */
+Serial::Serial(char* p, int b, int pa) {
+    port = p;
+    baudrate = b;
+    parity = pa;
+}
+
+/*
+ *  Setters
+ */
+void Serial::_set_packet_helper(int size, int offset, uint8_t const get_addr[], uint8_t set_addr[]) {
+    for(int i = offset; i < offset + size; i++)
+        set_addr[i] = get_addr[i-1];
+    return;
+}
+
+void Serial::set_outgoing_packet_address(int size, uint8_t com_addr[]) {
+    _set_packet_helper(4, 1, com_addr, read_voltage);
+    _set_packet_helper(4, 1, com_addr, read_current);
+    _set_packet_helper(4, 1, com_addr, read_wattage);
+    _set_packet_helper(4, 1, com_addr, read_energy);
+
+    return;
+}
 
 /* 
  *  Sets usb information using the open file descriptor
