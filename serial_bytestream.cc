@@ -39,20 +39,24 @@ uint8_t READ_ENERGY[] = {0xB3, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1D};
 class Serial {
     private:
         char* port;
-        int baudrate = B9600;
-        int parity = 0;
+        int baudrate;
+        int parity;
         int fd;
         uint8_t com_addr[4] = {0x00, 0x00, 0x00, 0x00};
-        uint8_t read_voltage[MSG_LEN] = {0xB0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1A};
-        uint8_t read_current[MSG_LEN] = {0xB1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1B};
-        uint8_t read_wattage[MSG_LEN] = {0XB2, 0X00, 0X00, 0X00, 0X00, 0X00, 0X1C};
-        uint8_t read_energy[MSG_LEN] = {0xB3, 0X00, 0X00, 0X00, 0X00, 0X00, 0X1D};
-    public:
-        Serial(char* p, int = B9600, int = 0);
+        uint8_t read_voltage[MSG_LEN] = {0xB0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t read_current[MSG_LEN] = {0xB1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t read_wattage[MSG_LEN] = {0XB2, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00};
+        uint8_t read_energy[MSG_LEN] = {0xB3, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00};
+        /* helper functions */
         void _set_packet_helper(int size, int offset, uint8_t const get_addr[], uint8_t set_addr[]);
-        void set_outgoing_packet_address(int size, uint8_t com_addr[]);
+        uint8_t _calc_checksum(int size, uint8_t const packet[]);
+    public:
+        Serial(char* p, int b = B9600, int pa = 0);
+        void set_address(int size, uint8_t addr[]);
         int print_packet_oneline(int size, uint8_t packet[]);
         int print_packet(int size, uint8_t packet[]);
+        void print_com_addr();
+        void print_all();
 };
 
 /*
@@ -70,15 +74,75 @@ Serial::Serial(char* p, int b, int pa) {
 void Serial::_set_packet_helper(int size, int offset, uint8_t const get_addr[], uint8_t set_addr[]) {
     for(int i = offset; i < offset + size; i++)
         set_addr[i] = get_addr[i-1];
+    set_addr[MSG_LEN - 1] = _calc_checksum(MSG_LEN, set_addr); 
     return;
 }
 
-void Serial::set_outgoing_packet_address(int size, uint8_t com_addr[]) {
-    _set_packet_helper(4, 1, com_addr, read_voltage);
-    _set_packet_helper(4, 1, com_addr, read_current);
-    _set_packet_helper(4, 1, com_addr, read_wattage);
-    _set_packet_helper(4, 1, com_addr, read_energy);
+void Serial::set_address(int size, uint8_t addr[]) {
+    for(int i = 0; i < size; i++)
+        com_addr[i] = addr[i];
+    _set_packet_helper(size, 1, addr, read_voltage);
+    _set_packet_helper(size, 1, addr, read_current);
+    _set_packet_helper(size, 1, addr, read_wattage);
+    _set_packet_helper(size, 1, addr, read_energy);
+    return;
+}
 
+/* 
+ *  Serial helper functions
+ */
+uint8_t Serial::_calc_checksum(int size, uint8_t const packet[]) {
+    uint8_t ret = 0;
+    for(int i = 0; i < size; i++) {
+        ret += packet[i];
+    }
+    return ret;
+}
+
+/*
+ *  Prints array elements
+ *  Caller must make sure that the length of the packet is correct
+ */
+int Serial::print_packet(int size, uint8_t packet[]) {
+    for(int i = 0; i < size; i++) {
+        printf("%d) 0x%.2x\n", i, packet[i]);
+    }
+    return 0;
+}
+
+/*
+ *  Print packet on one line
+ */
+int Serial::print_packet_oneline(int size, uint8_t packet[]) {
+    printf("packet: 0x");
+    for(int i = 0; i < size; i++)
+        printf("%.2x", packet[i]);
+    printf("\n");
+    return 0;
+}
+
+void Serial::print_com_addr() {
+    for(int i = 0; i < 3; i++)
+        cout << (int) com_addr[i] << ".";
+    cout << (int) com_addr[3] << "\n";
+    return;
+}
+
+void Serial::print_all() {
+    cout << "port name: " << port << "\n";
+    cout << "baudrate: " << baudrate << "\n";
+    cout << "parity: " << parity << "\n";
+    cout << "fd: " << fd << "\n";
+    cout << "comm addr ";
+    print_com_addr();
+    cout << "read_voltage ";
+    print_packet_oneline(MSG_LEN, read_voltage);
+    cout << "read_current ";
+    print_packet_oneline(MSG_LEN, read_current);
+    cout << "read_wattage ";
+    print_packet_oneline(MSG_LEN, read_wattage);
+    cout << "read_energy ";
+    print_packet_oneline(MSG_LEN, read_energy);
     return;
 }
 
@@ -146,28 +210,6 @@ static int set_blocking (int fd, int should_block) {
         printf("error %d setting term attributes", errno);
         return -1;
     }
-    return 0;
-}
-
-/*
- *  Prints array elements
- *  Caller must make sure that the length of the packet is correct
- */
-int Serial::print_packet(int size, uint8_t packet[]) {
-    for(int i = 0; i < size; i++) {
-        printf("%d) 0x%.2x\n", i, packet[i]);
-    }
-    return 0;
-}
-
-/*
- *  Print packet on one line
- */
-int Serial::print_packet_oneline(int size, uint8_t packet[]) {
-    printf("packet: 0x");
-    for(int i = 0; i < size; i++)
-        printf("%.2x", packet[i]);
-    printf("\n");
     return 0;
 }
 
@@ -398,6 +440,13 @@ int main()
 {
     printf("starting...\n");
     fflush(stdout);
+
+    char testport[] = "/dev/ttyUSB0";
+    Serial* s = new Serial(testport);
+    uint8_t test_addr[] = {192, 168, 1, 2};
+    s->set_address(4, test_addr);
+    s->print_all();
+    delete s;
    
     /*
     * get time
