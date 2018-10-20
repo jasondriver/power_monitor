@@ -347,7 +347,7 @@ static int convert_energy(uint8_t packet[]) {
 
 /*
  *  
- *  Main methods
+ *  Main send methods
  *
  */
 
@@ -387,12 +387,12 @@ static int receive_energy(int fd) {
     return convert_energy(buf);
 }
 
-static void flush_line(int fd) {
-    int num_times_flush = 4;
-    uint8_t flush_packet[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static void reset_line(int fd) {
+    int num_times_reset = 4;
+    uint8_t reset_packet[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t buf[MSG_LEN];
-    for(int i = 0; i < num_times_flush; i++) {
-        send_packet(fd, MSG_LEN, flush_packet);
+    for(int i = 0; i < num_times_reset; i++) {
+        send_packet(fd, MSG_LEN, reset_packet);
         usleep(SEND_RECEIVE_DELAY);
         recieve_packet(fd, MSG_LEN, buf);
     }
@@ -478,25 +478,25 @@ int main()
     set_com_addr(fd, com_addr);
 
     send_packet(fd, MSG_LEN, READ_VOLTAGE);
-    flush_line(fd);
+    reset_line(fd);
 
     for (int i = 0; i < 2; i++) {
-        flush_line(fd);
+        reset_line(fd);
         printf("Wattage is: %d\n", receive_power(fd));
     }
 
     for (int i = 0; i < 2; i++) {
-        flush_line(fd);
+        reset_line(fd);
         printf("Voltage is: %f\n", receive_voltage(fd));
     }
 
     for (int i = 0; i < 2; i++) {
-        flush_line(fd);
+        reset_line(fd);
         printf("Current is: %f\n", receive_current(fd));
     }
 
     for (int i = 0; i < 2; i++) {
-        flush_line(fd);
+        reset_line(fd);
         printf("Energy is: %d\n", receive_energy(fd));
     }
 
@@ -524,13 +524,13 @@ int main()
     int power = 0;
     int energy = 0;
 
-    flush_line(fd);
+    reset_line(fd);
     voltage = receive_voltage(fd);
-    flush_line(fd);
+    reset_line(fd);
     current =  receive_current(fd);
-    flush_line(fd);
+    reset_line(fd);
     power = receive_power(fd);
-    flush_line(fd);
+    reset_line(fd);
     energy =  receive_energy(fd);
 
     /* Create SQL statement */
