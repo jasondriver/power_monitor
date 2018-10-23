@@ -103,13 +103,13 @@ Serial::Serial(char* p, int b, int pa) {
  *  Deconstructor
  */
 Serial::~Serial() {
-    delete []port;
     return;
 }
 
 /*
  *  Setters
  */
+/* opens port */
 void Serial::open_port(char* p) {
     port = p;
     int f = open (p, O_RDWR | O_NOCTTY | O_SYNC);
@@ -123,12 +123,14 @@ void Serial::open_port(char* p) {
     return;
 }
 
+/* closes the port if open */
 void Serial::close_port() {
     if (fd != -1)
         close(fd);
     return;
 }
 
+/* helper that sets a packet with the device address */
 void Serial::_set_packet_helper(int size, int offset, uint8_t const get_addr[], uint8_t set_addr[]) {
     for(int i = offset; i < offset + size; i++)
         set_addr[i] = get_addr[i-1];
@@ -136,6 +138,7 @@ void Serial::_set_packet_helper(int size, int offset, uint8_t const get_addr[], 
     return;
 }
 
+/* sets all sendable packets with the device address */
 void Serial::set_address(int size, uint8_t addr[]) {
     for(int i = 0; i < size; i++)
         com_addr[i] = addr[i];
