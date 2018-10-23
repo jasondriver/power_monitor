@@ -62,6 +62,7 @@ class Serial {
         ~Serial();
 
         void open_port(char* p);
+        void close_port();
         void set_address(int size, uint8_t addr[]);
         int send_packet(int size, uint8_t packet[]);
         int recieve_packet(int size, uint8_t *packet);
@@ -102,8 +103,6 @@ Serial::Serial(char* p, int b, int pa) {
  *  Deconstructor
  */
 Serial::~Serial() {
-    if(fd != -1)
-        close(fd);
     delete []port;
     return;
 }
@@ -121,6 +120,12 @@ void Serial::open_port(char* p) {
     }
     else
         fd = f;
+    return;
+}
+
+void Serial::close_port() {
+    if (fd != -1)
+        close(fd);
     return;
 }
 
@@ -829,7 +834,9 @@ int main()
 
     printf("ending...\n");
     fflush(stdout);
-  
+ 
+    s.close_port();
+ 
     //reset_device(fd);
     //close(fd);
     return 0;
