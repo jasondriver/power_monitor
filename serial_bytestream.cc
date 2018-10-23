@@ -48,12 +48,30 @@ class Serial {
         uint8_t read_wattage[MSG_LEN] = {0XB2, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00};
         uint8_t read_energy[MSG_LEN] = {0xB3, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00};
         /* helper functions */
+        int _set_interface_attribs (int speed, int parity);
+        int _set_blocking (int should_block);
         void _set_packet_helper(int size, int offset, uint8_t const get_addr[], uint8_t set_addr[]);
         uint8_t _calc_checksum(int size, uint8_t const packet[]);
+        double _convert_voltage(uint8_t packet[]);
+        double _convert_current(uint8_t packet[]);
+        int _hex_to_int(int size, int offset, uint8_t packet[]);
+        int _convert_power(uint8_t packet[]);
+        int _convert_energy(uint8_t packet[]);
     public:
         Serial(char* p, int b = B9600, int pa = 0);
+        ~Serial();
+
+        void open_port(char* p);
         void set_address(int size, uint8_t addr[]);
-        int print_packet_oneline(int size, uint8_t packet[]);
+        int send_packet(int size, uint8_t packet[]);
+        int recieve_packet(int size, uint8_t *packet);
+
+        int receive_power();
+        double receive_voltage();
+        double receive_current();
+        int receive_energy();
+        void reset_line();
+
         int print_packet(int size, uint8_t packet[]);
         void print_com_addr();
         void print_all();
@@ -66,11 +84,46 @@ Serial::Serial(char* p, int b, int pa) {
     port = p;
     baudrate = b;
     parity = pa;
+
+    int f = open (port, O_RDWR | O_NOCTTY | O_SYNC);
+
+    if (f < 0) {
+            printf("error %d opening %s: %s", errno, port, strerror (errno));
+            f = -1;
+    }
+    else {
+        fd = f;
+        _set_interface_attribs (b, pa);
+        _set_blocking (0);
+    }
+}
+
+/* 
+ *  Deconstructor
+ */
+Serial::~Serial() {
+    if(fd != -1)
+        close(fd);
+    delete []port;
+    return;
 }
 
 /*
  *  Setters
  */
+void Serial::open_port(char* p) {
+    port = p;
+    int f = open (p, O_RDWR | O_NOCTTY | O_SYNC);
+
+    if (f < 0) {
+            printf("error %d opening %s: %s", errno, port, strerror (errno));
+            f = -1;
+    }
+    else
+        fd = f;
+    return;
+}
+
 void Serial::_set_packet_helper(int size, int offset, uint8_t const get_addr[], uint8_t set_addr[]) {
     for(int i = offset; i < offset + size; i++)
         set_addr[i] = get_addr[i-1];
@@ -91,6 +144,72 @@ void Serial::set_address(int size, uint8_t addr[]) {
 /* 
  *  Serial helper functions
  */
+
+/* 
+ *  Sets usb information using the open file descriptor
+ *  Thanks to wallyk for the set_interface_attribs and set_blocking methods from this post on stack overflow
+ *  https://stackoverflow.com/questions/6947413/how-to-open-read-and-write-from-serial-port-in-c
+ *  added some slight modifications to them
+ */
+int Serial::_set_interface_attribs (int speed, int parity) {
+    struct termios tty;
+    memset (&tty, 0, sizeof tty);
+    if (tcgetattr (fd, &tty) != 0)
+    {   
+        printf("error %d from tcgetattr", errno);
+        return -1;
+    }
+
+    cfsetospeed (&tty, speed);
+    cfsetispeed (&tty, speed);
+
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
+    // disable IGNBRK for mismatched speed tests; otherwise receive break
+    // as \000 chars
+    tty.c_iflag &= ~IGNBRK;         // disable break processing
+    tty.c_lflag = 0;                // no signaling chars, no echo,
+                                    // no canonical processing
+    tty.c_oflag = 0;                // no remapping, no delays
+    tty.c_cc[VMIN]  = 0;            // read doesn't block
+    tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
+
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
+
+    tty.c_cflag |= (CLOCAL | CREAD);// ignore modem controls,
+                                    // enable reading
+    tty.c_cflag &= ~(PARENB | PARODD);      // shut off parity
+    tty.c_cflag |= parity;
+    tty.c_cflag &= ~CSTOPB;
+    tty.c_cflag &= ~CRTSCTS;
+
+    if (tcsetattr (fd, TCSANOW, &tty) != 0)
+    {   
+        printf("error %d from tcsetattr", errno);
+        return -1;
+    }
+    return 0;
+}
+
+/* Sets blocking on open file descriptor */
+int Serial::_set_blocking (int should_block) {
+    struct termios tty;
+    memset (&tty, 0, sizeof tty);
+    if (tcgetattr (fd, &tty) != 0)
+    {   
+        printf("error %d from tggetattr", errno);
+        return -1;
+    }
+
+    tty.c_cc[VMIN]  = should_block ? 1 : 0;
+    tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
+
+    if (tcsetattr (fd, TCSANOW, &tty) != 0) {
+        printf("error %d setting term attributes", errno);
+        return -1;
+    }
+    return 0;
+}
+
 uint8_t Serial::_calc_checksum(int size, uint8_t const packet[]) {
     uint8_t ret = 0;
     for(int i = 0; i < size; i++) {
@@ -99,21 +218,141 @@ uint8_t Serial::_calc_checksum(int size, uint8_t const packet[]) {
     return ret;
 }
 
-/*
- *  Prints array elements
- *  Caller must make sure that the length of the packet is correct
+/*  Convert voltage packet to voltage value
+ *  voltage = packet[1] packet[2] . packet[3] */
+double Serial::_convert_voltage(uint8_t packet[]) {
+    int voltage_int = packet[1] * 100 + packet[2];
+    double voltage_decimal = (double) packet[3] /100.0;
+    double ret = (double) voltage_int + voltage_decimal;
+    return ret;
+}
+
+/* Convert current packet to value */
+double Serial::_convert_current(uint8_t packet[]) {
+    return (double) packet[2] + ((double) packet[3] / 100.0);
+}
+
+/*  Helper function for convert_power and convert_energy
+ *  size = how many elements to use, offset = where in the array to start, packet = array of #s */
+int Serial::_hex_to_int(int size, int offset, uint8_t packet[]) {
+    uint8_t* arr =  (uint8_t*) malloc(2 * size * sizeof(uint8_t));
+    if(!arr) {
+        printf("error %d from malloc", errno);
+    return -1;
+    }
+    int j = offset;
+    for (int i = 0; i < 2 * size; i++){
+        if((i % 2) == 0) {
+            arr[i] = (packet[j] & 0xF0) >> 4;
+    } else {
+            arr[i] = packet[j] & 0x0F;
+            j++;
+    }
+    }
+
+    int base = 1;
+    int ret = 0;
+
+    for (int i = (2 * size) - 1; i > -1; i--) {
+        ret += arr[i] * base;
+    base *= 16;
+    }
+
+    free(arr);
+    return ret;
+}
+
+/*  Convert average power packet to power value
+ *  power = (packet[1] packet[2])base16 */
+int Serial::_convert_power(uint8_t packet[]) {
+    return _hex_to_int(2, 1, packet);
+}
+
+/* Convert energy packet to value */
+int Serial::_convert_energy(uint8_t packet[]) {
+    return _hex_to_int(3, 1, packet);
+}
+
+/* 
+ * Main send methods 
  */
-int Serial::print_packet(int size, uint8_t packet[]) {
+/* Sends packet to open file descriptor of USB device */
+int Serial::send_packet(int size, uint8_t packet[]) {
     for(int i = 0; i < size; i++) {
-        printf("%d) 0x%.2x\n", i, packet[i]);
+        write (fd, &packet[i], 1);
+        // sleep enough to transmit the 1 byte (#bytes+25)*100
+        // receive 25:  approx 100 uS per char transmit
+        usleep ((1 + 25) * 100);
     }
     return 0;
 }
 
+/* Recieves and returns packet from open file descriptor of USB device */
+int Serial::recieve_packet(int size, uint8_t *packet) {
+    for(int i = 0; i < size; i++) {
+        int n = read (fd, &packet[i], 1);
+        if (n == 1)
+            continue;
+        else
+            break;
+        usleep (1000);
+    }
+    return 0;
+}
+
+int Serial::receive_power() {
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof buf);
+    send_packet(MSG_LEN, READ_WATTAGE);
+    usleep(SEND_RECEIVE_DELAY);
+    recieve_packet(MSG_LEN, buf);
+    return _convert_power(buf);
+}
+
+double Serial::receive_voltage() {
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof buf);
+    send_packet(MSG_LEN, READ_VOLTAGE);
+    usleep(SEND_RECEIVE_DELAY);
+    recieve_packet(MSG_LEN, buf);
+    return _convert_voltage(buf);
+}
+
+double Serial::receive_current() {
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof buf);
+    send_packet(MSG_LEN, READ_CURRENT);
+    usleep(SEND_RECEIVE_DELAY);
+    recieve_packet(MSG_LEN, buf);
+    return _convert_current(buf);
+}
+
+int Serial::receive_energy() {
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof buf);
+    send_packet(MSG_LEN, READ_ENERGY);
+    usleep(SEND_RECEIVE_DELAY);
+    recieve_packet(MSG_LEN, buf);
+    return _convert_energy(buf);
+}
+
+void Serial::reset_line() {
+    int num_times_reset = 4;
+    uint8_t reset_packet[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t buf[MSG_LEN];
+    for(int i = 0; i < num_times_reset; i++) {
+        send_packet(MSG_LEN, reset_packet);
+        usleep(SEND_RECEIVE_DELAY);
+        recieve_packet(MSG_LEN, buf);
+    }
+    return;
+}
+
 /*
- *  Print packet on one line
+ *  Print methods
  */
-int Serial::print_packet_oneline(int size, uint8_t packet[]) {
+/* Print packet on one line */
+int Serial::print_packet(int size, uint8_t packet[]) {
     printf("packet: 0x");
     for(int i = 0; i < size; i++)
         printf("%.2x", packet[i]);
@@ -136,15 +375,21 @@ void Serial::print_all() {
     cout << "comm addr ";
     print_com_addr();
     cout << "read_voltage ";
-    print_packet_oneline(MSG_LEN, read_voltage);
+    print_packet(MSG_LEN, read_voltage);
     cout << "read_current ";
-    print_packet_oneline(MSG_LEN, read_current);
+    print_packet(MSG_LEN, read_current);
     cout << "read_wattage ";
-    print_packet_oneline(MSG_LEN, read_wattage);
+    print_packet(MSG_LEN, read_wattage);
     cout << "read_energy ";
-    print_packet_oneline(MSG_LEN, read_energy);
+    print_packet(MSG_LEN, read_energy);
     return;
 }
+
+/*
+ *
+ *  Stand alone methods
+ *
+ */
 
 /* 
  *  Sets usb information using the open file descriptor
@@ -440,13 +685,6 @@ int main()
 {
     printf("starting...\n");
     fflush(stdout);
-
-    char testport[] = "/dev/ttyUSB0";
-    Serial* s = new Serial(testport);
-    uint8_t test_addr[] = {192, 168, 1, 2};
-    s->set_address(4, test_addr);
-    s->print_all();
-    delete s;
    
     /*
     * get time
@@ -455,11 +693,12 @@ int main()
     cout << "Current time: " << current_time_and_date() << "\n";
 
     // calc checksum for READ_VOLTAGE
-    READ_VOLTAGE[6] = calc_checksum(6, READ_VOLTAGE);
+    //READ_VOLTAGE[6] = calc_checksum(6, READ_VOLTAGE);
     //print_packet_oneline(MSG_LEN, READ_VOLTAGE);
 
     // open usb device
     char portname[] = "/dev/ttyUSB0";
+/*
     int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
 
     if (fd < 0)
@@ -472,9 +711,38 @@ int main()
     set_interface_attribs (fd, B9600, 0);
     // set no blocking 
     set_blocking (fd, 0);
+*/
 
     // set communication address as 192.168.1.1 (not for LAN, but for usb to device)
     uint8_t com_addr[] = {192, 168, 1, 1};
+
+    // set serial class
+    Serial s = Serial(portname, B9600, 0);
+    //uint8_t test_addr[] = {192, 168, 1, 2};
+    s.set_address(4, com_addr);
+    s.print_all();
+
+    for (int i = 0; i < 2; i++) {
+        s.reset_line();
+        printf("Wattage is: %d\n", s.receive_power());
+    }
+
+    for (int i = 0; i < 2; i++) {
+        s.reset_line();
+        printf("Voltage is: %f\n", s.receive_voltage());
+    }
+
+    for (int i = 0; i < 2; i++) {
+        s.reset_line();
+        printf("Current is: %f\n", s.receive_current());
+    }
+
+    for (int i = 0; i < 2; i++) {
+        s.reset_line();
+        printf("Energy is: %d\n", s.receive_energy());
+    }
+
+/*
     set_com_addr(fd, com_addr);
 
     send_packet(fd, MSG_LEN, READ_VOLTAGE);
@@ -499,6 +767,7 @@ int main()
         reset_line(fd);
         printf("Energy is: %d\n", receive_energy(fd));
     }
+*/
 
     /*
      * open and add to sqlite3 database
@@ -524,6 +793,15 @@ int main()
     int power = 0;
     int energy = 0;
 
+    s.reset_line();
+    voltage = s.receive_voltage();
+    s.reset_line();
+    current =  s.receive_current();
+    s.reset_line();
+    power = s.receive_power();
+    s.reset_line();
+    energy =  s.receive_energy();
+/*
     reset_line(fd);
     voltage = receive_voltage(fd);
     reset_line(fd);
@@ -532,6 +810,7 @@ int main()
     power = receive_power(fd);
     reset_line(fd);
     energy =  receive_energy(fd);
+*/
 
     /* Create SQL statement */
     char const* sql = return_formated_sql_insert_string(device_id, voltage, current, power, energy).c_str();
@@ -552,6 +831,6 @@ int main()
     fflush(stdout);
   
     //reset_device(fd);
-    close(fd);
+    //close(fd);
     return 0;
 }
