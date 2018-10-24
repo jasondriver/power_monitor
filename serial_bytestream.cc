@@ -38,15 +38,20 @@ uint8_t READ_ENERGY[] = {0xB3, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1D};
  */
 class Serial {
     private:
+        // variables
         char* port;
         int baudrate;
         int parity;
         int fd;
         uint8_t com_addr[4] = {0x00, 0x00, 0x00, 0x00};
+
+        // init messages for construct of predefined packets set by the device manufacturer to pass to the device
         uint8_t read_voltage[MSG_LEN] = {0xB0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
         uint8_t read_current[MSG_LEN] = {0xB1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
         uint8_t read_wattage[MSG_LEN] = {0XB2, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00};
         uint8_t read_energy[MSG_LEN] = {0xB3, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00};
+        uint8_t set_addr_packet[MSG_LEN] = {0xB4, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
         /* helper functions */
         int _set_interface_attribs (int speed, int parity);
         int _set_blocking (int should_block);
@@ -63,7 +68,7 @@ class Serial {
 
         void open_port(char* p);
         void close_port();
-        void set_address(int size, uint8_t addr[]);
+        void set_packets(int size, uint8_t addr[]);
         int send_packet(int size, uint8_t packet[]);
         int recieve_packet(int size, uint8_t *packet);
 
@@ -71,6 +76,7 @@ class Serial {
         double receive_voltage();
         double receive_current();
         int receive_energy();
+        void set_com_addr();
         void reset_line();
 
         int print_packet(int size, uint8_t packet[]);
@@ -139,20 +145,20 @@ void Serial::_set_packet_helper(int size, int offset, uint8_t const get_addr[], 
 }
 
 /* sets all sendable packets with the device address */
-void Serial::set_address(int size, uint8_t addr[]) {
+void Serial::set_packets(int size, uint8_t addr[]) {
     for(int i = 0; i < size; i++)
         com_addr[i] = addr[i];
     _set_packet_helper(size, 1, addr, read_voltage);
     _set_packet_helper(size, 1, addr, read_current);
     _set_packet_helper(size, 1, addr, read_wattage);
     _set_packet_helper(size, 1, addr, read_energy);
+    _set_packet_helper(size, 1, addr, set_addr_packet);
     return;
 }
 
 /* 
  *  Serial helper functions
  */
-
 /* 
  *  Sets usb information using the open file descriptor
  *  Thanks to wallyk for the set_interface_attribs and set_blocking methods from this post on stack overflow
@@ -218,6 +224,7 @@ int Serial::_set_blocking (int should_block) {
     return 0;
 }
 
+/* calculates checksum by device standards, sum all preceeding packets allowing overflow of uint for checksum*/
 uint8_t Serial::_calc_checksum(int size, uint8_t const packet[]) {
     uint8_t ret = 0;
     for(int i = 0; i < size; i++) {
@@ -226,8 +233,7 @@ uint8_t Serial::_calc_checksum(int size, uint8_t const packet[]) {
     return ret;
 }
 
-/*  Convert voltage packet to voltage value
- *  voltage = packet[1] packet[2] . packet[3] */
+/*  Convert voltage packet to voltage value, i.e. voltage = packet[1] packet[2] . packet[3] */
 double Serial::_convert_voltage(uint8_t packet[]) {
     int voltage_int = packet[1] * 100 + packet[2];
     double voltage_decimal = (double) packet[3] /100.0;
@@ -270,8 +276,7 @@ int Serial::_hex_to_int(int size, int offset, uint8_t packet[]) {
     return ret;
 }
 
-/*  Convert average power packet to power value
- *  power = (packet[1] packet[2])base16 */
+/*  Convert average power packet to power value, i.e. power = (packet[1] packet[2])base16 */
 int Serial::_convert_power(uint8_t packet[]) {
     return _hex_to_int(2, 1, packet);
 }
@@ -308,6 +313,10 @@ int Serial::recieve_packet(int size, uint8_t *packet) {
     return 0;
 }
 
+/* 
+ * Send the receive packet (needs to run set_address first), recieves device message, and decodes 
+ * Output: Power in W 
+ */
 int Serial::receive_power() {
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof buf);
@@ -317,6 +326,10 @@ int Serial::receive_power() {
     return _convert_power(buf);
 }
 
+/* 
+ * Send the receive packet (needs to run set_address first), recieves device message, and decodes 
+ * Output: Voltage in V 
+ */
 double Serial::receive_voltage() {
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof buf);
@@ -326,6 +339,10 @@ double Serial::receive_voltage() {
     return _convert_voltage(buf);
 }
 
+/* 
+ * Send the receive packet (needs to run set_address first), recieves device message, and decodes 
+ * Output: Current in A 
+ */
 double Serial::receive_current() {
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof buf);
@@ -335,6 +352,10 @@ double Serial::receive_current() {
     return _convert_current(buf);
 }
 
+/* 
+ * Send the receive packet (needs to run set_address first), recieves device message, and decodes 
+ * Output: Energy in J 
+ */
 int Serial::receive_energy() {
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof buf);
@@ -344,6 +365,23 @@ int Serial::receive_energy() {
     return _convert_energy(buf);
 }
 
+/*
+ *  Sets the communication address of the device, needs to be of the form ###.###.###.### i.e. 192.168.1.1
+ */
+void Serial::set_com_addr() {
+    send_packet(MSG_LEN, set_addr_packet);
+    uint8_t buf[MSG_LEN];
+    memset(&buf, 0, sizeof(buf));
+    recieve_packet(MSG_LEN, buf);
+    // not sure why but sometimes recieve doesn't get anything
+    usleep(10000);
+    recieve_packet(MSG_LEN, buf);
+    return;
+}
+
+/*
+ *  Resets line by sending blank packet and consuming packets from device
+ */
 void Serial::reset_line() {
     int num_times_reset = 4;
     uint8_t reset_packet[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -368,6 +406,7 @@ int Serial::print_packet(int size, uint8_t packet[]) {
     return 0;
 }
 
+/* Prints the com address */
 void Serial::print_com_addr() {
     for(int i = 0; i < 3; i++)
         cout << (int) com_addr[i] << ".";
@@ -375,6 +414,7 @@ void Serial::print_com_addr() {
     return;
 }
 
+/* Prints portname, baudrate, parity, file descriptor, address, and the packets */
 void Serial::print_all() {
     cout << "port name: " << port << "\n";
     cout << "baudrate: " << baudrate << "\n";
@@ -521,15 +561,11 @@ int set_com_addr(int fd, uint8_t addr[]) {
 
     // send packet to device
     send_packet(fd, MSG_LEN, set_com_addr_cmd);
-    //printf("Sent packet:\n");
-    //print_packet_oneline(MSG_LEN, set_com_addr_cmd);
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof(buf));
     recieve_packet(fd, MSG_LEN, buf);
     usleep(10000);
     recieve_packet(fd, MSG_LEN, buf);
-    //printf("Recieved packet:\n");
-    //print_packet_oneline(MSG_LEN, buf);
     return 0;
 }
 
@@ -604,6 +640,7 @@ static int convert_energy(uint8_t packet[]) {
  *
  */
 
+/* */
 static int receive_power(int fd) {
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof buf);
@@ -694,18 +731,13 @@ int main()
     printf("starting...\n");
     fflush(stdout);
    
-    /*
-    * get time
-    */
+    /* get time */
     string the_time = current_time_and_date();
     cout << "Current time: " << current_time_and_date() << "\n";
 
-    // calc checksum for READ_VOLTAGE
-    //READ_VOLTAGE[6] = calc_checksum(6, READ_VOLTAGE);
-    //print_packet_oneline(MSG_LEN, READ_VOLTAGE);
-
     // open usb device
     char portname[] = "/dev/ttyUSB0";
+
 /*
     int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
 
@@ -721,13 +753,16 @@ int main()
     set_blocking (fd, 0);
 */
 
-    // set communication address as 192.168.1.1 (not for LAN, but for usb to device)
-    uint8_t com_addr[] = {192, 168, 1, 1};
+    // set communication address as 192.168.1.2 (not for LAN, but for usb to device)
+    uint8_t com_addr[] = {192, 168, 1, 2};
 
     // set serial class
     Serial s = Serial(portname, B9600, 0);
-    //uint8_t test_addr[] = {192, 168, 1, 2};
-    s.set_address(4, com_addr);
+    // calculate all packets 
+    s.set_packets(4, com_addr);
+    // set the com address in the device
+    s.set_com_addr();
+    // print all
     s.print_all();
 
     for (int i = 0; i < 2; i++) {
@@ -750,36 +785,7 @@ int main()
         printf("Energy is: %d\n", s.receive_energy());
     }
 
-/*
-    set_com_addr(fd, com_addr);
-
-    send_packet(fd, MSG_LEN, READ_VOLTAGE);
-    reset_line(fd);
-
-    for (int i = 0; i < 2; i++) {
-        reset_line(fd);
-        printf("Wattage is: %d\n", receive_power(fd));
-    }
-
-    for (int i = 0; i < 2; i++) {
-        reset_line(fd);
-        printf("Voltage is: %f\n", receive_voltage(fd));
-    }
-
-    for (int i = 0; i < 2; i++) {
-        reset_line(fd);
-        printf("Current is: %f\n", receive_current(fd));
-    }
-
-    for (int i = 0; i < 2; i++) {
-        reset_line(fd);
-        printf("Energy is: %d\n", receive_energy(fd));
-    }
-*/
-
-    /*
-     * open and add to sqlite3 database
-     */
+    /* sqlite3 database variables */
     sqlite3 *db;
     char *zErrMsg = 0;
     int rc;
@@ -801,6 +807,7 @@ int main()
     int power = 0;
     int energy = 0;
 
+    /* Query device */
     s.reset_line();
     voltage = s.receive_voltage();
     s.reset_line();
@@ -809,16 +816,6 @@ int main()
     power = s.receive_power();
     s.reset_line();
     energy =  s.receive_energy();
-/*
-    reset_line(fd);
-    voltage = receive_voltage(fd);
-    reset_line(fd);
-    current =  receive_current(fd);
-    reset_line(fd);
-    power = receive_power(fd);
-    reset_line(fd);
-    energy =  receive_energy(fd);
-*/
 
     /* Create SQL statement */
     char const* sql = return_formated_sql_insert_string(device_id, voltage, current, power, energy).c_str();
@@ -834,13 +831,11 @@ int main()
     }
     sqlite3_close(db);
 
-
     printf("ending...\n");
     fflush(stdout);
  
     s.close_port();
  
     //reset_device(fd);
-    //close(fd);
     return 0;
 }
