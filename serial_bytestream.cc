@@ -82,6 +82,8 @@ class Serial {
         int print_packet(int size, uint8_t packet[]);
         void print_com_addr();
         void print_all();
+
+	int get_fd();
 };
 
 /*
@@ -365,15 +367,21 @@ int Serial::receive_energy() {
     return _convert_energy(buf);
 }
 
-/*
+/*  TODO: fix this method
  *  Sets the communication address of the device, needs to be of the form ###.###.###.### i.e. 192.168.1.1
+ *
  */
 void Serial::set_com_addr() {
-    send_packet(MSG_LEN, set_addr_packet);
+    // package address info for device
+    uint8_t set_com_addr_cmd[] = {0xB4, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    for(int i = 1; i < 5; i++)
+        set_com_addr_cmd[i] = com_addr[i-1];
+    set_com_addr_cmd[6] = _calc_checksum(6, set_com_addr_cmd);
+    // send packet to device
+    send_packet(MSG_LEN, set_com_addr_cmd);
     uint8_t buf[MSG_LEN];
     memset(&buf, 0, sizeof(buf));
     recieve_packet(MSG_LEN, buf);
-    // not sure why but sometimes recieve doesn't get anything
     usleep(10000);
     recieve_packet(MSG_LEN, buf);
     return;
@@ -430,7 +438,16 @@ void Serial::print_all() {
     print_packet(MSG_LEN, read_wattage);
     cout << "read_energy ";
     print_packet(MSG_LEN, read_energy);
+    cout << "set_addr ";
+    print_packet(MSG_LEN, set_addr_packet);
     return;
+}
+
+/*
+ *  Getters
+ */
+int Serial::get_fd() {
+    return fd;
 }
 
 /*
@@ -754,13 +771,14 @@ int main()
 */
 
     // set communication address as 192.168.1.2 (not for LAN, but for usb to device)
-    uint8_t com_addr[] = {192, 168, 1, 2};
+    uint8_t com_addr[] = {192, 168, 1, 1};
 
     // set serial class
     Serial s = Serial(portname, B9600, 0);
     // calculate all packets 
     s.set_packets(4, com_addr);
     // set the com address in the device
+    set_com_addr(s.get_fd(), com_addr);
     s.set_com_addr();
     // print all
     s.print_all();
