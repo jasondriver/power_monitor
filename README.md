@@ -11,3 +11,4 @@ apt-get install libsqlite3-dev
 
 ### for node 
 npm install sqlite3
+npm install express

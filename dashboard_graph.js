@@ -1,3 +1,31 @@
+var http = require('http');
+
+// Options to be used by request 
+var options = {
+   host: 'localhost',
+   port: '8081',
+   path: 'templates/index.html'  
+};
+
+// Callback function is used to deal with response
+var callback = function(response) {
+   // Continuously update stream with data
+   var body = '';
+   response.on('data', function(data) {
+      body += data;
+   });
+   
+   response.on('end', function() {
+      // Data received completely.
+      console.log(body);
+   });
+}
+// Make a request to the server
+var req = http.request(options, callback);
+req.end();
+
+
+/*
 // store a bunch of time values for the graph
 times = []
 
@@ -124,3 +152,4 @@ function draw_dashboard_graph() {
 // draw graph every 1 second
 //var startGraph = window.setInterval(createGraph, 1000)
 var startGraph = window.setInterval(draw_dashboard_graph, 1000)
+*/
