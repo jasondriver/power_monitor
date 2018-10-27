@@ -754,9 +754,12 @@ int main()
 
     // open usb device
     char portname[] = "/dev/ttyUSB0";
+    char portname1[] = "/dev/ttyUSB1";
+//    float p1,p2, v1,v2, c1, c2, e1,e2;
 
 /*
-    int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
+    int fd  = open (portname,  O_RDWR | O_NOCTTY | O_SYNC);
+    int fd1 = open (portname1, O_RDWR | O_NOCTTY | O_SYNC);
 
     if (fd < 0)
     {
@@ -765,42 +768,53 @@ int main()
     }
 
     // set speed to 9600 baud rate, 8n1 (no parity)
-    set_interface_attribs (fd, B9600, 0);
+    set_interface_attribs (fd , B9600, 0);
+    set_interface_attribs (fd1, B9600, 0);
     // set no blocking 
-    set_blocking (fd, 0);
+    set_blocking (fd , 0);
+    set_blocking (fd1, 0);
 */
 
     // set communication address as 192.168.1.2 (not for LAN, but for usb to device)
     uint8_t com_addr[] = {192, 168, 1, 1};
 
     // set serial class
-    Serial s = Serial(portname, B9600, 0);
+    Serial s = Serial(portname , B9600, 0);
+    Serial s1= Serial(portname1, B9600, 0);
     // calculate all packets 
     s.set_packets(4, com_addr);
+    s1.set_packets(4, com_addr);
     // set the com address in the device
     set_com_addr(s.get_fd(), com_addr);
+    set_com_addr(s1.get_fd(), com_addr);
     s.set_com_addr();
+    s1.set_com_addr();
     // print all
     s.print_all();
+    s1.print_all();
 
     for (int i = 0; i < 2; i++) {
         s.reset_line();
-        printf("Wattage is: %d\n", s.receive_power());
+        s1.reset_line();
+        printf("Wattage is: %d ,  %d\n", s.receive_power(), s1.receive_power() );
     }
 
     for (int i = 0; i < 2; i++) {
         s.reset_line();
-        printf("Voltage is: %f\n", s.receive_voltage());
+        s1.reset_line();
+        printf("Voltage is: %f ,  %f\n", s.receive_voltage(), s1.receive_voltage()  );
     }
 
     for (int i = 0; i < 2; i++) {
         s.reset_line();
-        printf("Current is: %f\n", s.receive_current());
+        s1.reset_line();
+        printf("Current is: %f ,  %f\n", s.receive_current(), s1.receive_current());
     }
 
     for (int i = 0; i < 2; i++) {
         s.reset_line();
-        printf("Energy is: %d\n", s.receive_energy());
+        s1.reset_line();
+        printf("Energy is: %d ,  %d\n", s.receive_energy() , s1.receive_energy() );
     }
 
     /* sqlite3 database variables */
@@ -820,10 +834,19 @@ int main()
 
     /* Get info */
     int device_id = 1;
-    double voltage = 0.0;
-    double  current =  0.0;
-    int power = 0;
-    int energy = 0;
+    double voltage = 0.0,   v2=0;
+    double  current =  0.0, c2=0;
+    int power = 0,  p2=0;
+    int energy = 0, e2=0;
+    FILE *ostream;
+
+//  ostream = fopen("data.csv","w");
+//  fprintf(ostream," time, p1,p2");
+
+
+    for ( int k=0; k<99999999; k++ ) {
+
+    the_time = current_time_and_date();
 
     /* Query device */
     s.reset_line();
@@ -834,6 +857,24 @@ int main()
     power = s.receive_power();
     s.reset_line();
     energy =  s.receive_energy();
+
+
+    s1.reset_line();
+    v2 = s1.receive_voltage();
+    s1.reset_line();
+    c2 =  s1.receive_current();
+    s1.reset_line();
+    p2 = s1.receive_power();
+    s1.reset_line();
+    e2 =  s1.receive_energy();
+
+//  printf( "%d,%s,%f8.2,%f8.2 \n",k,current_time_and_date,power,p2); 
+    printf( "%d,%8d,%8d \n",k,power,p2); 
+    fflush(stdout);
+
+    }
+
+
 
     /* Create SQL statement */
     char const* sql = return_formated_sql_insert_string(device_id, voltage, current, power, energy).c_str();
