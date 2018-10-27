@@ -6,4 +6,8 @@ voltage, current, average power of the device it is monitoring.  Data is stored
 in a database and displayed in html and served from a flask server using python. 
 
 # include 
+### for c++
 apt-get install libsqlite3-dev 
+
+### for node 
+npm install sqlite3
