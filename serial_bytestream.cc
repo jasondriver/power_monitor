@@ -15,6 +15,8 @@
 #include <ctime>
 #include <iostream>
 #include <iomanip>
+#include <signal.h>
+#include <sys/time.h>
 
 using namespace std; 
 
@@ -726,10 +728,10 @@ string current_time_and_date() {
     return ss.str();
 }
 
-string return_formated_sql_insert_string(int device_id, double voltage, double current, int power, int energy) {
+string return_formated_sql_insert_string(string date_time, int device_id, double voltage, double current, int power, int energy) {
     stringstream ss;
     ss << "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) ";
-    ss << "VALUES ('" << current_time_and_date() << "', " << device_id << ", " << setw(5) << voltage;
+    ss << "VALUES ('" << date_time << "', " << device_id << ", " << setw(5) << voltage;
     ss << ", " << setw(4) << current << ", " << power << ", " << energy << " );";
     return ss.str();
 }
@@ -820,7 +822,7 @@ int main()
     /* sqlite3 database variables */
     sqlite3 *db;
     char *zErrMsg = 0;
-    int rc;
+    int rc, rc2;
 
     /* Open database */
     rc = sqlite3_open("power_monitor.db", &db);
@@ -843,41 +845,77 @@ int main()
 //  ostream = fopen("data.csv","w");
 //  fprintf(ostream," time, p1,p2");
 
+    /* set timer */
+    /*
+    struct sigaction sa;
+    struct itimerval timer;
 
-    for ( int k=0; k<99999999; k++ ) {
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = &periodic_function;
+    sigaction(SIGVALRM, &sa, NULL);
 
-    the_time = current_time_and_date();
+    timer.it_value.tv_sec = 0.5;
+    timer.it_interval.tv_sec = 0.5;
 
-    /* Query device */
-    s.reset_line();
-    voltage = s.receive_voltage();
-    s.reset_line();
-    current =  s.receive_current();
-    s.reset_line();
-    power = s.receive_power();
-    s.reset_line();
-    energy =  s.receive_energy();
+    setitimer(ITIMER_VIRTUAL, &timer, NULL);
+    */
 
+    for (int k = 0; k < 99999999; k++) {
 
-    s1.reset_line();
-    v2 = s1.receive_voltage();
-    s1.reset_line();
-    c2 =  s1.receive_current();
-    s1.reset_line();
-    p2 = s1.receive_power();
-    s1.reset_line();
-    e2 =  s1.receive_energy();
+        the_time = current_time_and_date();
 
-//  printf( "%d,%s,%f8.2,%f8.2 \n",k,current_time_and_date,power,p2); 
-    printf( "%d,%8d,%8d \n",k,power,p2); 
-    fflush(stdout);
+        /* Query device */
+        s.reset_line();
+        voltage = s.receive_voltage();
+        s.reset_line();
+        current =  s.receive_current();
+        s.reset_line();
+        power = s.receive_power();
+        s.reset_line();
+        energy =  s.receive_energy();
+
+        s1.reset_line();
+        v2 = s1.receive_voltage();
+        s1.reset_line();
+        c2 =  s1.receive_current();
+        s1.reset_line();
+        p2 = s1.receive_power();
+        s1.reset_line();
+        e2 =  s1.receive_energy();
+
+//      printf( "%d,%s,%f8.2,%f8.2 \n",k,current_time_and_date,power,p2); 
+        printf( "%d,%8d,%8d \n",k,power,p2); 
+        fflush(stdout);
+
+        /* Create SQL statement */
+        char const* sql = return_formated_sql_insert_string(the_time, 0, voltage, current, power, energy).c_str();
+        char const* sql2 = return_formated_sql_insert_string(the_time, 1, v2, c2, p2, e2).c_str();
+
+        /* Execute SQL statement */
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+
+        /* Catch the error
+        if( rc != SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+        } else {
+            cout << "Records created successfully\n" << sql << "\n";
+        }
+        */
+        rc2 = sqlite3_exec(db, sql2, callback, 0, &zErrMsg);
+        /* Catch the error
+        if( rc2 != SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+        } else {
+            cout << "Records created successfully\n" << sql << "\n";
+        }
+        */
 
     }
 
-
-
     /* Create SQL statement */
-    char const* sql = return_formated_sql_insert_string(device_id, voltage, current, power, energy).c_str();
+    char const* sql = return_formated_sql_insert_string(current_time_and_date(), device_id, voltage, current, power, energy).c_str();
 
     /* Execute SQL statement */
     rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
