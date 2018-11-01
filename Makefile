@@ -27,16 +27,16 @@ $(obj): $(deps)
 debug:
 	$(CC) $(CFLAGS) -ggdb $(src) -o $(lib)
 
-run:
-	export FLASK_APP=web_server.py
-	flask run --host=0.0.0.0
+#run:
+#	export FLASK_APP=web_server.py
+#	flask run --host=0.0.0.0
 
-debug_web:
-	python web_server.py  #export FLASK_APP=web_server.py
+#debug_web:
+#	python web_server.py  #export FLASK_APP=web_server.py
 	#export FLASK_ENV=development
 	#flask run
 
 clean:
-	rm -f $(lib) $(obj) web_server.pyc
+	rm -f $(lib) $(obj) #web_server.pyc
 
 .Phoney: all debug clean
