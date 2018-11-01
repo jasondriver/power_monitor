@@ -728,12 +728,13 @@ string current_time_and_date() {
     return ss.str();
 }
 
-string return_formated_sql_insert_string(string date_time, int device_id, double voltage, double current, int power, int energy) {
+void return_formated_sql_insert_string(string out, string date_time, int device_id, double voltage, double current, int power, int energy) {
     stringstream ss;
     ss << "INSERT INTO DAILY_POWER (DATE,DEVICE_ID,VOLTAGE,CURRENT,POWER,ENERGY) ";
     ss << "VALUES ('" << date_time << "', " << device_id << ", " << setw(5) << voltage;
     ss << ", " << setw(4) << current << ", " << power << ", " << energy << " );";
-    return ss.str();
+    out = ss.str();
+    return;
 }
 
 static int callback(void *not_used, int argc, char **argv, char **az_col_name) {
@@ -795,6 +796,7 @@ int main()
     s.print_all();
     s1.print_all();
 
+    /*
     for (int i = 0; i < 2; i++) {
         s.reset_line();
         s1.reset_line();
@@ -818,6 +820,7 @@ int main()
         s1.reset_line();
         printf("Energy is: %d ,  %d\n", s.receive_energy() , s1.receive_energy() );
     }
+    */
 
     /* sqlite3 database variables */
     sqlite3 *db;
@@ -888,44 +891,47 @@ int main()
         fflush(stdout);
 
         /* Create SQL statement */
-        char const* sql = return_formated_sql_insert_string(the_time, 0, voltage, current, power, energy).c_str();
-        char const* sql2 = return_formated_sql_insert_string(the_time, 1, v2, c2, p2, e2).c_str();
+        string sql;
+	return_formated_sql_insert_string(sql, the_time, 0, voltage, current, power, energy);
+	string sql2;
+        return_formated_sql_insert_string(sql2, the_time, 1, v2, c2, p2, e2);
 
         /* Execute SQL statement */
-        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        rc = sqlite3_exec(db, sql.c_str(), callback, 0, &zErrMsg);
 
-        /* Catch the error
+        //Catch the error
         if( rc != SQLITE_OK ){
             fprintf(stderr, "SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);
         } else {
             cout << "Records created successfully\n" << sql << "\n";
         }
-        */
-        rc2 = sqlite3_exec(db, sql2, callback, 0, &zErrMsg);
-        /* Catch the error
+        
+        rc2 = sqlite3_exec(db, sql2.c_str(), callback, 0, &zErrMsg);
+        // Catch the error
         if( rc2 != SQLITE_OK ){
             fprintf(stderr, "SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);
         } else {
             cout << "Records created successfully\n" << sql << "\n";
         }
-        */
+       
 
     }
 
     /* Create SQL statement */
-    char const* sql = return_formated_sql_insert_string(current_time_and_date(), device_id, voltage, current, power, energy).c_str();
+    //char const* sql = return_formated_sql_insert_string(current_time_and_date(), device_id, voltage, current, power, energy).c_str();
 
     /* Execute SQL statement */
-    rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
-   
+    //rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    /*   
     if( rc != SQLITE_OK ){
         fprintf(stderr, "SQL error: %s\n", zErrMsg);
         sqlite3_free(zErrMsg);
     } else {
         cout << "Records created successfully\n" << sql << "\n";
     }
+    */
     sqlite3_close(db);
 
     printf("ending...\n");
