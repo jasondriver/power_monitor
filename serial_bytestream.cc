@@ -1,3 +1,5 @@
+#include <wiringPi.h>
+
 #include <errno.h>
 #include <fcntl.h> 
 #include <string.h>
@@ -17,6 +19,7 @@
 #include <iomanip>
 #include <signal.h>
 #include <sys/time.h>
+#include <vector>
 
 using namespace std; 
 
@@ -34,6 +37,10 @@ uint8_t READ_VOLTAGE[] = {0xB0, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1A};
 uint8_t READ_CURRENT[] = {0xB1, 0xC0, 0xA8, 0x01, 0x01, 0x00, 0x1B};
 uint8_t READ_WATTAGE[] = {0XB2, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1C};
 uint8_t READ_ENERGY[] = {0xB3, 0XC0, 0XA8, 0X01, 0X01, 0X00, 0X1D};
+
+// time of day to turn gpio pin on/off
+int threshhold_hour = 12;
+int threshhold_minute = 30;
 
 /*
  *  Serial class for dealing with usb connections
@@ -583,6 +590,16 @@ int set_com_addr(int fd, uint8_t addr[]) {
     return 0;
 }
 
+/* return time as vector<int>, firt element ret[0]  is hour (24hr format, 0-23)  second element ret[1]  is minutes (0-59)*/
+vector<int> current_time_hour_minutes() {
+    time_t raw_time = time(nullptr);
+    vector<int> ret(2, 0);
+    tm* t = localtime(&raw_time);
+    ret[0] = t->tm_hour;
+    ret[1] = t->tm_min; 
+    return ret;
+}
+
 /* return date and time as string, works on linux */
 string current_time_and_date() {
     time_t raw_time = time(nullptr);
@@ -684,6 +701,11 @@ int main()
     int power = 0,  p2=0;
     int energy = 0, e2=0;
 
+    // flag for triggering io pins
+    bool pin_triggered = false;
+    // setup gpio pins for output
+    wiringPiSetup();
+    pinMode(0, OUTPUT);
     /* continuous loop */
     for (uint k = 0;; k++) {
 
@@ -707,6 +729,18 @@ int main()
         p2 = s1.receive_power();
         s1.line_wait();
         e2 =  s1.receive_energy();
+
+	// trigger io pin
+        vector<int> time = current_time_hour_minutes();
+        if(!pin_triggered && time[0] == threshhold_hour && (threshhold_minute >= time[1])) {
+	    pin_triggered = true;
+	    digitalWrite(0, HIGH);
+	}
+	// reset trigger at midnight
+	if(time[0] == 0) {
+	    pin_triggered = false;
+	    digitalWrite(0, LOW);
+	}
 
         /* Create SQL statement */
         string* sql = new string[180];

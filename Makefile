@@ -8,7 +8,7 @@ obj := serial_bytestream.o
 CC = g++
 #CFLAGS := -Wall -Werror -Wextra
 CFLAGS := -Wall -Wextra
-CFLAGS += -l sqlite3
+CFLAGS += -l sqlite3 -lwiringPi
 
 ## Debug flag
 ifneq ($(D),1)
