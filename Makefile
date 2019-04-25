@@ -1,42 +1,24 @@
-# target
-lib := serial_bytestream
-src := serial_bytestream.cc
-deps := $(src)
-deps += serial_bytestream.h
-obj := serial_bytestream.o
+TARGET 	:= bin/output
+CC      := g++
+CFLAGS  := -Wall -Werror -std=c++17
+INC := -I include
 
-CC = g++
-#CFLAGS := -Wall -Werror -Wextra
-CFLAGS := -Wall -Wextra
-CFLAGS += -l sqlite3 -lwiringPi
+SRC_DIR := src
+OBJ_DIR := build
+INC_DIR   := include
 
-## Debug flag
-ifneq ($(D),1)
-CFLAGS	+= -O2
-else
-CFLAGS	+= -O0
-CFLAGS	+= -g
-endif
+_OBJ = serial.o serial_bytestream.o main.o
+OBJ = $(patsubst %,$(OBJ_DIR)/%,$(_OBJ))
 
-all: $(obj)
-	$(CC) $(CFLAGS) $(obj) -o $(lib)
+all: $(TARGET)
 
-$(obj): $(deps)
-	$(CC) -c $(CFLAGS) $(src) 
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) -l sqlite3 $^ -o $@
 
-debug:
-	$(CC) $(CFLAGS) -ggdb $(src) -o $(lib)
-
-#run:
-#	export FLASK_APP=web_server.py
-#	flask run --host=0.0.0.0
-
-#debug_web:
-#	python web_server.py  #export FLASK_APP=web_server.py
-	#export FLASK_ENV=development
-	#flask run
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cc $(INC_DIR)/%.h
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@
 
 clean:
-	rm -f $(lib) $(obj) #web_server.pyc
+	rm -f $(OBJ_DIR)/*.o $(TARGET)
 
-.Phoney: all debug clean
+.PHONY: clean
