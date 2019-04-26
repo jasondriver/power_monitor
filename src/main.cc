@@ -93,7 +93,6 @@ int main(int argc, char *argv[]) {
     int rc;
 
     /* Open database */
-//    rc = sqlite3_open("power_monitor.db", &db);
     rc = sqlite3_open(path_to_db, &db);
 
     if( rc ) {

@@ -32,6 +32,8 @@ make
 ```
 
 ### run
+$ program  db  device0  device1  ...
+Example with 2 devices.
 ```
 cd bin
 ./output power_monitor.db /dev/ttyUSB0 /dev/ttyUSB1
@@ -48,11 +50,8 @@ Type 'q'+enter into terminal to quit the program.
 
 ### Example Output
 ```
-starting at current time: 2019-04-25 20:21:46
+starting at current time: 2019-01-26 13:55:27
 Opened database successfully
-2019-04-25 20:21:50, 0, 118.03, 15.3, 0, 1441792
-2019-04-25 20:21:50, 1, 118, 0, 162, 524436
+2019-01-26 13:55:30, 0, 118.01, 10.48, 1228, 1473304
+2019-01-26 13:55:30, 1, 118.02, 1.71, 200, 581427
 ```
-
-
-
