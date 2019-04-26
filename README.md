@@ -34,6 +34,25 @@ make
 ### run
 ```
 cd bin
-./output power_monitor.db
+./output power_monitor.db /dev/ttyUSB0 /dev/ttyUSB1
 ```
+
+You can also save to a csv by redirecting cout to a file
+```
+./output power_monitor.db /dev/ttyUSB0 /dev/ttyUSB1 > file.csv
+```
+
+### quit
+
+Type 'q'+enter into terminal to quit the program.
+
+### Example Output
+```
+starting at current time: 2019-04-25 20:21:46
+Opened database successfully
+2019-04-25 20:21:50, 0, 118.03, 15.3, 0, 1441792
+2019-04-25 20:21:50, 1, 118, 0, 162, 524436
+```
+
+
 

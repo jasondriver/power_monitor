@@ -32,7 +32,9 @@ Serial::Serial(char* p, int b, int pa) : port(p), baudrate(b), parity(pa) {
     }
     else {
         fd = f;
+        // set speed to 9600 baud rate, 8n1 (no parity)
         _set_interface_attribs (b, pa);
+        // set no blocking
         _set_blocking (0);
     }
 }

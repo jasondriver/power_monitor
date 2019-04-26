@@ -13,7 +13,7 @@ OBJ = $(patsubst %,$(OBJ_DIR)/%,$(_OBJ))
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) -l sqlite3 $^ -o $@
+	$(CC) $(CFLAGS) -l sqlite3 -pthread $^ -o $@
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cc $(INC_DIR)/%.h
 	$(CC) $(CFLAGS) $(INC) -c $< -o $@
